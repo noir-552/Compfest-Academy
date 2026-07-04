@@ -78,6 +78,9 @@ async function getOwnedProductOrThrow(
   if (product.store.sellerUserId !== sellerUserId) {
     throw new ApiError(403, 'NOT_OWNER', 'Product does not belong to this seller');
   }
+  if (product.isDeleted) {
+    throw new ApiError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
+  }
   return product;
 }
 

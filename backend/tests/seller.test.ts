@@ -479,4 +479,47 @@ describe('DELETE /api/seller/products/:id', () => {
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('WRONG_ROLE');
   });
+
+  it('returns 404 PRODUCT_NOT_FOUND when updating a soft-deleted product', async () => {
+    const token = await sellerToken('seller_prod_delete_then_update');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+    const createRes = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send(validProduct);
+    const productId = createRes.body.product.id as string;
+
+    // Delete the product
+    await request(app).delete(`/api/seller/products/${productId}`).set('Authorization', `Bearer ${token}`);
+
+    // Try to update the deleted product
+    const res = await request(app)
+      .put(`/api/seller/products/${productId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, price: 20000 });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('PRODUCT_NOT_FOUND');
+  });
+
+  it('returns 404 PRODUCT_NOT_FOUND when deleting a soft-deleted product again', async () => {
+    const token = await sellerToken('seller_prod_delete_twice');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+    const createRes = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send(validProduct);
+    const productId = createRes.body.product.id as string;
+
+    // Delete the product
+    await request(app).delete(`/api/seller/products/${productId}`).set('Authorization', `Bearer ${token}`);
+
+    // Try to delete the already-deleted product
+    const res = await request(app)
+      .delete(`/api/seller/products/${productId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('PRODUCT_NOT_FOUND');
+  });
 });
