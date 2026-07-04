@@ -14,9 +14,11 @@ model User {
   phone        String
   createdAt    DateTime @default(now())
 
-  roles    UserRole[]
-  sessions Session[]
-  store    Store?
+  roles     UserRole[]
+  sessions  Session[]
+  store     Store?
+  wallet    Wallet?
+  addresses Address[]
 }
 
 model UserRole {
@@ -71,4 +73,38 @@ model Product {
   createdAt   DateTime @default(now())
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+model Wallet {
+  id          String   @id @default(uuid())
+  buyerUserId String   @unique
+  balance     Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  buyer        User                @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id        String   @id @default(uuid())
+  walletId  String
+  orderId   String?
+  type      String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model Address {
+  id            String   @id @default(uuid())
+  buyerUserId   String
+  label         String
+  recipientName String
+  phone         String
+  fullAddress   String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  buyer User @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
 }
