@@ -7,6 +7,7 @@ import {
   updateProductHandler,
   deleteProductHandler,
 } from '../controllers/product.controller';
+import { listIncomingOrdersHandler } from '../controllers/order.controller';
 
 const router = Router();
 
@@ -20,5 +21,7 @@ router.get('/products', listProductsHandler);
 router.post('/products', createProductHandler);
 router.put('/products/:id', updateProductHandler);
 router.delete('/products/:id', deleteProductHandler);
+
+router.get('/orders', listIncomingOrdersHandler);
 
 export default router;

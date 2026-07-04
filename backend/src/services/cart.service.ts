@@ -1,5 +1,20 @@
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../lib/api-error';
+
+/** Either the global singleton client or an interactive transaction client. */
+type Db = PrismaClient | Prisma.TransactionClient;
+
+export interface LiveCartItem {
+  id: string;
+  quantity: number;
+  product: { id: string; name: string; price: number; stock: number; isDeleted: boolean };
+}
+
+export interface PrunedCart {
+  liveItems: LiveCartItem[];
+  storeId: string | null;
+}
 
 export interface CartItemSummary {
   product: {
@@ -24,8 +39,8 @@ interface CartRecord {
   storeId: string | null;
 }
 
-async function getOrCreateCart(buyerUserId: string): Promise<CartRecord> {
-  return prisma.cart.upsert({
+export async function getOrCreateCart(buyerUserId: string, client: Db = prisma): Promise<CartRecord> {
+  return client.cart.upsert({
     where: { buyerUserId },
     create: { buyerUserId },
     update: {},
@@ -38,12 +53,16 @@ async function getOrCreateCart(buyerUserId: string): Promise<CartRecord> {
  * Returns the live items and the effective (post-prune) storeId, so callers
  * can make decisions (e.g. the store-conflict check) against current state
  * rather than a potentially stale `cart.storeId`.
+ *
+ * Accepts an optional Prisma client so callers that need pruning to happen
+ * inside their own interactive transaction (e.g. checkout) can pass `tx`.
  */
-async function pruneCart(
+export async function pruneCart(
   cartId: string,
   storeId: string | null,
-): Promise<{ liveItems: Array<{ id: string; quantity: number; product: { id: string; name: string; price: number; stock: number; isDeleted: boolean } }>; storeId: string | null }> {
-  const items = await prisma.cartItem.findMany({
+  client: Db = prisma,
+): Promise<PrunedCart> {
+  const items = await client.cartItem.findMany({
     where: { cartId },
     include: { product: true },
   });
@@ -52,13 +71,13 @@ async function pruneCart(
   const staleItemIds = items.filter((item) => item.product.isDeleted).map((item) => item.id);
 
   if (staleItemIds.length > 0) {
-    await prisma.cartItem.deleteMany({ where: { id: { in: staleItemIds } } });
+    await client.cartItem.deleteMany({ where: { id: { in: staleItemIds } } });
   }
 
   let effectiveStoreId = storeId;
   if (liveItems.length === 0 && effectiveStoreId !== null) {
     effectiveStoreId = null;
-    await prisma.cart.update({ where: { id: cartId }, data: { storeId: null } });
+    await client.cart.update({ where: { id: cartId }, data: { storeId: null } });
   }
 
   return { liveItems, storeId: effectiveStoreId };
