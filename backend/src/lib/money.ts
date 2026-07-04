@@ -51,7 +51,7 @@ export function computeDiscount(
   // Apply voucher first
   if (voucher) {
     if (voucher.discountType === 'PERCENT') {
-      voucherAmount = Math.floor((voucher.discountValue / 100) * subtotal);
+      voucherAmount = Math.floor((voucher.discountValue * subtotal) / 100);
     } else {
       voucherAmount = voucher.discountValue;
     }
@@ -63,7 +63,7 @@ export function computeDiscount(
   if (promo) {
     const remainder = subtotal - voucherAmount;
     if (promo.discountType === 'PERCENT') {
-      promoAmount = Math.floor((promo.discountValue / 100) * remainder);
+      promoAmount = Math.floor((promo.discountValue * remainder) / 100);
     } else {
       promoAmount = promo.discountValue;
     }

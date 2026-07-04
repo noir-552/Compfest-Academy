@@ -24,6 +24,33 @@ describe('money library', () => {
   });
 
   describe('computeDiscount', () => {
+    it('PERCENT 29 voucher on 100000 → 29000 (regression: IEEE-754 floor exactness)', () => {
+      const result = computeDiscount(100000, {
+        discountType: 'PERCENT',
+        discountValue: 29,
+      });
+      expect(result.voucherAmount).toBe(29000);
+      expect(result.discountAmount).toBe(29000);
+    });
+
+    it('PERCENT 29 voucher on 55000 → 15950 (regression: IEEE-754 floor exactness)', () => {
+      const result = computeDiscount(55000, {
+        discountType: 'PERCENT',
+        discountValue: 29,
+      });
+      expect(result.voucherAmount).toBe(15950);
+      expect(result.discountAmount).toBe(15950);
+    });
+
+    it('PERCENT 17 promo alone on 100000 → 17000 (regression: IEEE-754 floor exactness)', () => {
+      const result = computeDiscount(100000, undefined, {
+        discountType: 'PERCENT',
+        discountValue: 17,
+      });
+      expect(result.promoAmount).toBe(17000);
+      expect(result.discountAmount).toBe(17000);
+    });
+
     it('returns zero discount when no voucher or promo', () => {
       const result = computeDiscount(100000);
       expect(result.voucherAmount).toBe(0);
@@ -143,7 +170,7 @@ describe('money library', () => {
       });
       expect(result.subtotal).toBe(99999);
       expect(result.discountAmount).toBe(9999);
-      expect(result.ppnAmount).toBe(Math.floor(0.12 * (99999 - 9999)));
+      expect(result.ppnAmount).toBe(10800);
       expect(result.finalTotal).toBe(99999 - 9999 + result.ppnAmount + 10000);
     });
 
@@ -165,8 +192,7 @@ describe('money library', () => {
         discountType: 'FIXED',
         discountValue: 12345,
       });
-      const expectedPpn = Math.floor(0.12 * (87654 - 12345));
-      expect(result.ppnAmount).toBe(expectedPpn);
+      expect(result.ppnAmount).toBe(9037);
     });
 
     it('caps discount and sets ppn to 0 when discount exceeds subtotal', () => {
@@ -197,7 +223,7 @@ describe('money library', () => {
         { discountType: 'FIXED', discountValue: 20000 }
       );
       expect(result.discountAmount).toBe(20000);
-      expect(result.ppnAmount).toBe(Math.floor(0.12 * 80000));
+      expect(result.ppnAmount).toBe(9600);
       expect(result.finalTotal).toBe(100000 - 20000 + result.ppnAmount + 10000);
     });
 
@@ -214,12 +240,9 @@ describe('money library', () => {
         discountType: 'PERCENT',
         discountValue: 25,
       });
-      const expectedDiscount = Math.floor(0.25 * 123456);
-      const expectedPpn = Math.floor(0.12 * (123456 - expectedDiscount));
-      const expectedFinal = 123456 - expectedDiscount + expectedPpn + 15000;
-      expect(result.discountAmount).toBe(expectedDiscount);
-      expect(result.ppnAmount).toBe(expectedPpn);
-      expect(result.finalTotal).toBe(expectedFinal);
+      expect(result.discountAmount).toBe(30864);
+      expect(result.ppnAmount).toBe(11111);
+      expect(result.finalTotal).toBe(123456 - 30864 + 11111 + 15000);
     });
   });
 });
