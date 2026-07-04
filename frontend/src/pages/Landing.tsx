@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { listReviews, createReview, type Review } from '../api/reviews';
+import { listProducts, type PublicProduct } from '../api/catalog';
 import { ApiClientError } from '../api/client';
-import { DUMMY_PRODUCTS } from '../data/products';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
@@ -33,6 +33,10 @@ export function Landing() {
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
 
+  const [featured, setFeatured] = useState<PublicProduct[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+  const [featuredError, setFeaturedError] = useState<string | null>(null);
+
   const [name, setName] = useState('');
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -44,6 +48,13 @@ export function Landing() {
       .then((res) => setReviews(res.reviews))
       .catch(() => setReviewsError('Gagal memuat ulasan.'))
       .finally(() => setLoadingReviews(false));
+  }, []);
+
+  useEffect(() => {
+    listProducts()
+      .then((res) => setFeatured(res.products.slice(0, 4)))
+      .catch(() => setFeaturedError('Gagal memuat produk unggulan.'))
+      .finally(() => setLoadingFeatured(false));
   }, []);
 
   async function handleSubmit(event: FormEvent) {
@@ -66,8 +77,6 @@ export function Landing() {
       setSubmitting(false);
     }
   }
-
-  const featured = DUMMY_PRODUCTS.slice(0, 4);
 
   return (
     <div className="flex flex-col gap-16 pb-16">
@@ -99,18 +108,31 @@ export function Landing() {
             Lihat semua
           </Link>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {featured.map((product) => (
-            <Link key={product.id} to={`/product/${product.id}`}>
-              <Card className="h-full">
-                <div className="mb-3 aspect-square w-full rounded-lg bg-slate-100" />
-                <p className="text-xs font-medium text-teal-700">{product.storeName}</p>
-                <h3 className="mt-1 text-sm font-semibold text-slate-900">{product.name}</h3>
-                <p className="mt-1 text-sm font-bold text-slate-900">Rp {product.price.toLocaleString('id-ID')}</p>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        {loadingFeatured && <p className="text-sm text-slate-500">Memuat produk unggulan...</p>}
+        {featuredError && (
+          <p className="text-sm text-red-600" role="alert">
+            {featuredError}
+          </p>
+        )}
+        {!loadingFeatured && !featuredError && featured.length === 0 && (
+          <p className="text-sm text-slate-500">Belum ada produk. Jadilah penjual pertama!</p>
+        )}
+        {!loadingFeatured && !featuredError && featured.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {featured.map((product) => (
+              <Link key={product.id} to={`/product/${product.id}`}>
+                <Card className="h-full">
+                  <div className="mb-3 aspect-square w-full rounded-lg bg-slate-100" />
+                  <p className="text-xs font-medium text-teal-700">{product.store.storeName}</p>
+                  <h3 className="mt-1 text-sm font-semibold text-slate-900">{product.name}</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    Rp {product.price.toLocaleString('id-ID')}
+                  </p>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="mx-auto w-full max-w-4xl px-4">
