@@ -41,11 +41,11 @@ function toPublicTransaction(tx: WalletTransactionRecord): PublicWalletTransacti
 }
 
 export async function getOrCreateWallet(buyerUserId: string): Promise<WalletRecord> {
-  const existing = await prisma.wallet.findUnique({ where: { buyerUserId } });
-  if (existing) {
-    return existing;
-  }
-  return prisma.wallet.create({ data: { buyerUserId, balance: 0 } });
+  return prisma.wallet.upsert({
+    where: { buyerUserId },
+    create: { buyerUserId, balance: 0 },
+    update: {},
+  });
 }
 
 export async function getWalletWithTransactions(buyerUserId: string): Promise<WalletWithTransactions> {
