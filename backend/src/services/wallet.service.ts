@@ -1,4 +1,8 @@
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+
+/** Either the global singleton client or an interactive transaction client. */
+type Db = PrismaClient | Prisma.TransactionClient;
 
 export interface PublicWalletTransaction {
   id: string;
@@ -40,8 +44,8 @@ function toPublicTransaction(tx: WalletTransactionRecord): PublicWalletTransacti
   };
 }
 
-export async function getOrCreateWallet(buyerUserId: string): Promise<WalletRecord> {
-  return prisma.wallet.upsert({
+export async function getOrCreateWallet(buyerUserId: string, client: Db = prisma): Promise<WalletRecord> {
+  return client.wallet.upsert({
     where: { buyerUserId },
     create: { buyerUserId, balance: 0 },
     update: {},

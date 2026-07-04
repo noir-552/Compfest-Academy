@@ -20,6 +20,7 @@ model User {
   wallet    Wallet?
   addresses Address[]
   cart      Cart?
+  orders    Order[]
 }
 
 model UserRole {
@@ -62,6 +63,7 @@ model Store {
   seller   User      @relation(fields: [sellerUserId], references: [id], onDelete: Cascade)
   products Product[]
   carts    Cart[]
+  orders   Order[]
 }
 
 model Product {
@@ -74,8 +76,9 @@ model Product {
   isDeleted   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  cartItems CartItem[]
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
 }
 
 model Wallet {
@@ -97,6 +100,7 @@ model WalletTransaction {
   createdAt DateTime @default(now())
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
 }
 
 model Address {
@@ -109,7 +113,8 @@ model Address {
   isDefault     Boolean  @default(false)
   createdAt     DateTime @default(now())
 
-  buyer User @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  buyer  User    @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  orders Order[]
 }
 
 model Cart {
@@ -133,4 +138,56 @@ model CartItem {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, productId])
+}
+
+model Order {
+  id                    String   @id @default(uuid())
+  buyerUserId           String
+  storeId               String
+  addressId             String
+  deliveryMethod        String
+  subtotal              Int
+  discountAmount        Int      @default(0)
+  deliveryFee           Int
+  ppnAmount             Int
+  finalTotal            Int
+  currentStatus         String   @default("SEDANG_DIKEMAS")
+  isRefunded            Boolean  @default(false)
+  isStockRestored       Boolean  @default(false)
+  isVoucherRestored     Boolean  @default(false)
+  recipientNameSnapshot String
+  phoneSnapshot         String
+  fullAddressSnapshot   String
+  slaDeadline           DateTime
+  createdAt             DateTime @default(now())
+
+  buyer   User    @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+
+  items              OrderItem[]
+  statusHistory      OrderStatusHistory[]
+  walletTransactions WalletTransaction[]
+}
+
+model OrderItem {
+  id                  String @id @default(uuid())
+  orderId             String
+  productId           String
+  productNameSnapshot String
+  priceSnapshot       Int
+  quantity            Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model OrderStatusHistory {
+  id            String   @id @default(uuid())
+  orderId       String
+  status        String
+  changedByRole String
+  changedAt     DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }

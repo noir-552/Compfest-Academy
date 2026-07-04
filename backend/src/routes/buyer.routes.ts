@@ -14,6 +14,8 @@ import {
   removeItemHandler,
   clearCartHandler,
 } from '../controllers/cart.controller';
+import { checkoutHandler, previewCheckoutHandler } from '../controllers/checkout.controller';
+import { listOwnOrdersHandler, getOwnOrderDetailHandler } from '../controllers/order.controller';
 
 const router = Router();
 
@@ -32,5 +34,11 @@ router.post('/cart/items', addItemHandler);
 router.put('/cart/items/:productId', updateItemHandler);
 router.delete('/cart/items/:productId', removeItemHandler);
 router.delete('/cart', clearCartHandler);
+
+router.post('/checkout/preview', previewCheckoutHandler);
+router.post('/checkout', checkoutHandler);
+
+router.get('/orders', listOwnOrdersHandler);
+router.get('/orders/:id', getOwnOrderDetailHandler);
 
 export default router;
