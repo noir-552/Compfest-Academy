@@ -16,6 +16,7 @@ import {
 } from '../controllers/cart.controller';
 import { checkoutHandler, previewCheckoutHandler } from '../controllers/checkout.controller';
 import { listOwnOrdersHandler, getOwnOrderDetailHandler } from '../controllers/order.controller';
+import { getBuyerReportHandler } from '../controllers/report.controller';
 
 const router = Router();
 
@@ -40,5 +41,7 @@ router.post('/checkout', checkoutHandler);
 
 router.get('/orders', listOwnOrdersHandler);
 router.get('/orders/:id', getOwnOrderDetailHandler);
+
+router.get('/report', getBuyerReportHandler);
 
 export default router;

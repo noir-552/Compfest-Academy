@@ -7,7 +7,8 @@ import {
   updateProductHandler,
   deleteProductHandler,
 } from '../controllers/product.controller';
-import { listIncomingOrdersHandler } from '../controllers/order.controller';
+import { listIncomingOrdersHandler, processOrderHandler } from '../controllers/order.controller';
+import { getSellerReportHandler } from '../controllers/report.controller';
 
 const router = Router();
 
@@ -23,5 +24,8 @@ router.put('/products/:id', updateProductHandler);
 router.delete('/products/:id', deleteProductHandler);
 
 router.get('/orders', listIncomingOrdersHandler);
+router.post('/orders/:id/process', processOrderHandler);
+
+router.get('/report', getSellerReportHandler);
 
 export default router;

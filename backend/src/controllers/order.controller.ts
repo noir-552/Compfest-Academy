@@ -26,3 +26,9 @@ export async function listIncomingOrdersHandler(req: Request, res: Response): Pr
   const orders = await orderService.listIncomingOrders(user.id);
   res.status(200).json({ orders });
 }
+
+export async function processOrderHandler(req: Request, res: Response): Promise<void> {
+  const { user } = requireAuth(req);
+  const order = await orderService.processOrder(user.id, req.params.id as string);
+  res.status(200).json({ order });
+}
