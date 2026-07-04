@@ -2,11 +2,11 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "test": "vitest run",
-    "build": "tsc"
+    "build": "tsc",
+    "db:migrate": "prisma migrate deploy"
   },
   "keywords": [],
   "author": "",
