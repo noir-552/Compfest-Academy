@@ -54,6 +54,33 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
   next();
 }
 
+export async function optionalAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  const token = extractBearerToken(req);
+  if (!token) {
+    next();
+    return;
+  }
+
+  const tokenHash = hashToken(token);
+  const session = await prisma.session.findUnique({
+    where: { tokenHash },
+    include: { user: { include: { roles: true } } },
+  });
+
+  if (!session || session.expiresAt.getTime() < Date.now()) {
+    next();
+    return;
+  }
+
+  const { user, ...session_ } = session;
+  req.auth = {
+    user,
+    session: session_,
+    activeRole: session_.activeRole as RoleType | null,
+  };
+  next();
+}
+
 export function requireActiveRole(...roles: RoleType[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     const activeRole = req.auth?.activeRole ?? null;
