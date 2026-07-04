@@ -4,20 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { RoleType } from '../api/auth';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-
-const ROLE_LABEL: Record<RoleType, string> = {
-  ADMIN: 'Admin',
-  SELLER: 'Penjual',
-  BUYER: 'Pembeli',
-  DRIVER: 'Kurir',
-};
-
-const DASHBOARD_PATH: Record<RoleType, string> = {
-  ADMIN: '/dashboard/admin',
-  SELLER: '/dashboard/seller',
-  BUYER: '/dashboard/buyer',
-  DRIVER: '/dashboard/driver',
-};
+import { DASHBOARD_PATH, ROLE_LABEL } from '../constants/roles';
 
 export function RolePicker() {
   const { roles, setActiveRole } = useAuth();

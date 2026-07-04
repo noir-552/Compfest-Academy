@@ -1,14 +1,7 @@
 import { useAuth } from '../auth/AuthContext';
-import type { RoleType } from '../api/auth';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
-
-const ROLE_LABEL: Record<RoleType, string> = {
-  ADMIN: 'Admin',
-  SELLER: 'Penjual',
-  BUYER: 'Pembeli',
-  DRIVER: 'Kurir',
-};
+import { ROLE_LABEL } from '../constants/roles';
 
 export function Profile() {
   const { user, roles, activeRole } = useAuth();
