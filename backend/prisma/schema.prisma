@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  email        String
+  phone        String
+  createdAt    DateTime @default(now())
+
+  roles    UserRole[]
+  sessions Session[]
+}
+
+model UserRole {
+  id       String @id @default(uuid())
+  userId   String
+  roleType String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleType])
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  activeRole String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AppReview {
+  id           String   @id @default(uuid())
+  userId       String?
+  reviewerName String
+  rating       Int
+  comment      String
+  createdAt    DateTime @default(now())
+}
