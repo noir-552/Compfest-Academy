@@ -192,6 +192,7 @@ export function Checkout() {
             id="voucher-code"
             label="Kode Voucher"
             applied={voucherApplied}
+            authoritativeAmount={preview?.discounts.voucher?.amount ?? null}
             subtotal={preview?.totals.subtotal ?? null}
             disabled={paying}
             onApply={setVoucherApplied}
@@ -201,6 +202,7 @@ export function Checkout() {
             id="promo-code"
             label="Kode Promo"
             applied={promoApplied}
+            authoritativeAmount={preview?.discounts.promo?.amount ?? null}
             subtotal={preview?.totals.subtotal ?? null}
             disabled={paying}
             onApply={setPromoApplied}

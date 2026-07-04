@@ -121,6 +121,97 @@ describe('Checkout discount code apply flow', () => {
     });
   });
 
+  it('shows the authoritative preview amount on the promo badge when stacked with a voucher, not the standalone validate amount', async () => {
+    // Voucher (PERCENT 10) is computed on the full Rp100.000 subtotal by both
+    // /validate and the preview. Promo (PERCENT 50) is computed by /validate
+    // on the full subtotal (Rp50.000) but by the backend preview on the
+    // post-voucher remainder (Rp45.000 = 50% of Rp90.000). The promo field's
+    // badge must show the preview's Rp45.000, not /validate's Rp50.000.
+    mockPreviewCheckout.mockImplementation((input) => {
+      if (input.voucherCode && input.promoCode) {
+        return Promise.resolve(
+          basePreview({
+            totals: {
+              subtotal: 100000,
+              discountAmount: 55000,
+              deliveryFee: 10000,
+              ppnAmount: 6600,
+              finalTotal: 61600,
+            },
+            discounts: {
+              voucher: { code: 'HEMAT10', amount: 10000 },
+              promo: { code: 'DISKON50', amount: 45000 },
+            },
+          }),
+        );
+      }
+      if (input.voucherCode) {
+        return Promise.resolve(
+          basePreview({
+            totals: {
+              subtotal: 100000,
+              discountAmount: 10000,
+              deliveryFee: 10000,
+              ppnAmount: 10800,
+              finalTotal: 110800,
+            },
+            discounts: { voucher: { code: 'HEMAT10', amount: 10000 }, promo: null },
+          }),
+        );
+      }
+      return Promise.resolve(basePreview());
+    });
+    mockValidateDiscountCode.mockImplementation((code) => {
+      if (code === 'HEMAT10') {
+        return Promise.resolve({
+          kind: 'VOUCHER',
+          code: 'HEMAT10',
+          discountType: 'PERCENT',
+          discountValue: 10,
+          amount: 10000,
+        });
+      }
+      return Promise.resolve({
+        kind: 'PROMO',
+        code: 'DISKON50',
+        discountType: 'PERCENT',
+        discountValue: 50,
+        amount: 50000,
+      });
+    });
+
+    renderCheckout();
+    const user = userEvent.setup();
+
+    await screen.findByLabelText('Kode Voucher');
+    await user.type(screen.getByLabelText('Kode Voucher'), 'hemat10');
+    await user.click(screen.getAllByRole('button', { name: 'Terapkan' })[0]);
+    await waitFor(() => {
+      expect(screen.getAllByText('HEMAT10').length).toBeGreaterThan(0);
+    });
+
+    await user.type(screen.getByLabelText('Kode Promo'), 'diskon50');
+    await user.click(screen.getByRole('button', { name: 'Terapkan' }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('DISKON50').length).toBeGreaterThan(0);
+    });
+
+    // Preview breakdown carries both authoritative amounts.
+    await waitFor(() => {
+      expect(mockPreviewCheckout).toHaveBeenCalledWith(
+        expect.objectContaining({ voucherCode: 'HEMAT10', promoCode: 'DISKON50' }),
+      );
+    });
+
+    // The promo field's own badge must show the preview's Rp45.000 (post-voucher
+    // remainder), not /validate's Rp50.000 (full-subtotal) amount.
+    await waitFor(() => {
+      expect(screen.getAllByText('-Rp45.000').length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText('-Rp50.000')).not.toBeInTheDocument();
+  });
+
   it('shows the backend message inline on 409 DISCOUNT_EXPIRED and does not pass the code to the preview', async () => {
     mockPreviewCheckout.mockResolvedValue(basePreview());
     mockValidateDiscountCode.mockRejectedValue(
