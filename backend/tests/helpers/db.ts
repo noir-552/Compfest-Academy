@@ -22,6 +22,8 @@ function ensureMigrated(): void {
 ensureMigrated();
 
 export async function resetDb(): Promise<void> {
+  await prisma.product.deleteMany();
+  await prisma.store.deleteMany();
   await prisma.session.deleteMany();
   await prisma.userRole.deleteMany();
   await prisma.appReview.deleteMany();
@@ -36,6 +38,12 @@ export interface RegisterAndLoginOptions {
   email?: string;
   phone?: string;
   password?: string;
+  /**
+   * Active role to set after login. Required when registering with more
+   * than one role, since login only auto-activates a role for single-role
+   * users; without this, requests would fail with 403 NO_ACTIVE_ROLE.
+   */
+  activeRole?: RoleType;
 }
 
 export interface RegisterAndLoginResult {
@@ -72,5 +80,20 @@ export async function registerAndLogin(
     throw new Error(`registerAndLogin: login failed with ${loginRes.status}: ${JSON.stringify(loginRes.body)}`);
   }
 
-  return { token: loginRes.body.token as string, username, password };
+  const token = loginRes.body.token as string;
+
+  if (opts.activeRole) {
+    const activeRoleRes = await request(app)
+      .post('/api/auth/active-role')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ role: opts.activeRole });
+
+    if (activeRoleRes.status !== 200) {
+      throw new Error(
+        `registerAndLogin: setting activeRole failed with ${activeRoleRes.status}: ${JSON.stringify(activeRoleRes.body)}`,
+      );
+    }
+  }
+
+  return { token, username, password };
 }
