@@ -4,20 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { RoleType } from '../api/auth';
 import { Badge } from './Badge';
 import { Button } from './Button';
-
-const ROLE_LABEL: Record<RoleType, string> = {
-  ADMIN: 'Admin',
-  SELLER: 'Penjual',
-  BUYER: 'Pembeli',
-  DRIVER: 'Kurir',
-};
-
-const DASHBOARD_PATH: Record<RoleType, string> = {
-  ADMIN: '/dashboard/admin',
-  SELLER: '/dashboard/seller',
-  BUYER: '/dashboard/buyer',
-  DRIVER: '/dashboard/driver',
-};
+import { DASHBOARD_PATH, ROLE_LABEL } from '../constants/roles';
 
 function navLinkClass({ isActive }: { isActive: boolean }): string {
   return `text-sm font-medium ${isActive ? 'text-teal-700' : 'text-slate-600 hover:text-teal-700'}`;
@@ -29,9 +16,12 @@ export function Navbar() {
   const navigate = useNavigate();
 
   async function handleLogout() {
-    await logout();
-    setMobileOpen(false);
-    navigate('/');
+    try {
+      await logout();
+    } finally {
+      setMobileOpen(false);
+      navigate('/');
+    }
   }
 
   async function handleRoleSwitch(role: RoleType) {
@@ -113,7 +103,7 @@ export function Navbar() {
         <button
           type="button"
           className="inline-flex items-center justify-center rounded-lg p-2 text-2xl text-slate-600 md:hidden"
-          aria-label="Buka menu"
+          aria-label={mobileOpen ? 'Tutup menu' : 'Buka menu'}
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((value) => !value)}
         >

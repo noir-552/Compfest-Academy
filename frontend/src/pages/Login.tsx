@@ -2,17 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { ApiClientError } from '../api/client';
-import type { RoleType } from '../api/auth';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
-
-const DASHBOARD_PATH: Record<RoleType, string> = {
-  ADMIN: '/dashboard/admin',
-  SELLER: '/dashboard/seller',
-  BUYER: '/dashboard/buyer',
-  DRIVER: '/dashboard/driver',
-};
+import { DASHBOARD_PATH } from '../constants/roles';
 
 export function Login() {
   const { login } = useAuth();
