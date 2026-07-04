@@ -33,11 +33,16 @@ async function getOrCreateCart(buyerUserId: string): Promise<CartRecord> {
 }
 
 /**
- * Reads a cart's items, pruning any whose product has been soft-deleted.
- * If pruning empties the cart, the cart's storeId is reset to null.
- * Returns the buyer-facing summary reflecting post-prune state.
+ * Deletes any cartItem rows whose product has been soft-deleted, and resets
+ * the cart's storeId to null if pruning left the cart with no live items.
+ * Returns the live items and the effective (post-prune) storeId, so callers
+ * can make decisions (e.g. the store-conflict check) against current state
+ * rather than a potentially stale `cart.storeId`.
  */
-async function summarizeCart(cartId: string, storeId: string | null): Promise<CartSummary> {
+async function pruneCart(
+  cartId: string,
+  storeId: string | null,
+): Promise<{ liveItems: Array<{ id: string; quantity: number; product: { id: string; name: string; price: number; stock: number; isDeleted: boolean } }>; storeId: string | null }> {
   const items = await prisma.cartItem.findMany({
     where: { cartId },
     include: { product: true },
@@ -55,6 +60,17 @@ async function summarizeCart(cartId: string, storeId: string | null): Promise<Ca
     effectiveStoreId = null;
     await prisma.cart.update({ where: { id: cartId }, data: { storeId: null } });
   }
+
+  return { liveItems, storeId: effectiveStoreId };
+}
+
+/**
+ * Reads a cart's items, pruning any whose product has been soft-deleted.
+ * If pruning empties the cart, the cart's storeId is reset to null.
+ * Returns the buyer-facing summary reflecting post-prune state.
+ */
+async function summarizeCart(cartId: string, storeId: string | null): Promise<CartSummary> {
+  const { liveItems, storeId: effectiveStoreId } = await pruneCart(cartId, storeId);
 
   let store: { id: string; storeName: string } | null = null;
   if (effectiveStoreId) {
@@ -100,7 +116,13 @@ export async function addItem(
     throw new ApiError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
   }
 
-  if (cart.storeId !== null && cart.storeId !== product.storeId) {
+  // Prune stale (soft-deleted-product) items before checking for a store
+  // conflict, so the check reflects live cart state rather than a
+  // `cart.storeId` that may be stale because no GET has run since the
+  // cart's only product was soft-deleted.
+  const { storeId: effectiveStoreId } = await pruneCart(cart.id, cart.storeId);
+
+  if (effectiveStoreId !== null && effectiveStoreId !== product.storeId) {
     throw new ApiError(
       409,
       'CART_STORE_CONFLICT',
@@ -122,7 +144,7 @@ export async function addItem(
   }
 
   await prisma.$transaction(async (tx) => {
-    if (cart.storeId === null) {
+    if (effectiveStoreId === null) {
       await tx.cart.update({ where: { id: cart.id }, data: { storeId: product.storeId } });
     }
     await tx.cartItem.upsert({

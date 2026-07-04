@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
+import { prisma } from '../src/lib/prisma';
 import { resetDb, registerAndLogin } from './helpers/db';
 
 const app = createApp();
@@ -202,6 +203,35 @@ describe('POST /api/buyer/cart/items', () => {
     expect(conflictRes.status).toBe(409);
 
     await request(app).delete('/api/buyer/cart').set('Authorization', `Bearer ${token}`);
+
+    const res = await request(app)
+      .post('/api/buyer/cart/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ productId: productB, quantity: 1 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.cart.storeId).toBe(storeB);
+    expect(res.body.cart.items).toHaveLength(1);
+    expect(res.body.cart.items[0].product.id).toBe(productB);
+  });
+
+  it('allows adding from a new store when the only cart item was soft-deleted without an intervening GET (stale storeId)', async () => {
+    const { productId: productA } = await createStoreAndProduct('cart_stale_seller_a', { storeName: 'Toko A' });
+    const { productId: productB, storeId: storeB } = await createStoreAndProduct(
+      'cart_stale_seller_b',
+      { storeName: 'Toko B' },
+      { name: 'Teh Tarik' },
+    );
+    const token = await buyerToken('cart_stale_buyer');
+
+    await request(app)
+      .post('/api/buyer/cart/items')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ productId: productA, quantity: 1 });
+
+    // Soft-delete the only cart item's product directly, bypassing any GET /cart
+    // that would normally trigger the prune-on-read self-healing logic.
+    await prisma.product.update({ where: { id: productA }, data: { isDeleted: true } });
 
     const res = await request(app)
       .post('/api/buyer/cart/items')
