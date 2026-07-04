@@ -13,6 +13,16 @@ export interface DiscountCodeFieldProps {
   label: string;
   /** The validated code currently applied to this field, if any. */
   applied: discountsApi.DiscountValidation | null;
+  /**
+   * Authoritative discount amount from the backend checkout preview
+   * (`preview.discounts.<kind>.amount`), once available. When both a
+   * voucher and a promo are applied, the promo's standalone /validate
+   * amount is computed on the full subtotal, while the preview amount
+   * reflects the post-voucher remainder actually used at checkout. When
+   * present, this overrides `applied.amount` in the badge so the field
+   * always agrees with the summary breakdown.
+   */
+  authoritativeAmount?: number | null;
   /** Cart subtotal used for validation; Terapkan is disabled while unknown. */
   subtotal: number | null;
   disabled?: boolean;
@@ -48,7 +58,16 @@ const KIND_AMOUNT_CLASS: Record<discountsApi.DiscountKind, string> = {
  * 409 DISCOUNT_EXPIRED/DISCOUNT_EXHAUSTED) surface inline using the
  * backend's own message.
  */
-export function DiscountCodeField({ id, label, applied, subtotal, disabled, onApply, onRemove }: DiscountCodeFieldProps) {
+export function DiscountCodeField({
+  id,
+  label,
+  applied,
+  authoritativeAmount,
+  subtotal,
+  disabled,
+  onApply,
+  onRemove,
+}: DiscountCodeFieldProps) {
   const [code, setCode] = useState('');
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +95,7 @@ export function DiscountCodeField({ id, label, applied, subtotal, disabled, onAp
   }
 
   if (applied) {
+    const displayAmount = authoritativeAmount ?? applied.amount;
     return (
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-slate-700">{label}</span>
@@ -85,7 +105,7 @@ export function DiscountCodeField({ id, label, applied, subtotal, disabled, onAp
           <div className="flex items-center gap-2">
             <Badge tone={KIND_BADGE_TONE[applied.kind]}>{KIND_LABEL[applied.kind]}</Badge>
             <span className="font-semibold text-slate-900">{applied.code}</span>
-            <span className={KIND_AMOUNT_CLASS[applied.kind]}>-{formatRupiah(applied.amount)}</span>
+            <span className={KIND_AMOUNT_CLASS[applied.kind]}>-{formatRupiah(displayAmount)}</span>
           </div>
           <Button variant="ghost" onClick={handleRemove} disabled={disabled}>
             Hapus
