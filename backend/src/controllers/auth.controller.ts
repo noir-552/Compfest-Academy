@@ -14,7 +14,12 @@ const registerSchema = z.object({
   email: z.string().email(),
   phone: z.string().regex(/^\d{8,15}$/, 'Phone must be 8-15 digits'),
   password: z.string().min(8),
-  roles: z.array(z.enum(REGISTERABLE_ROLES)).min(1),
+  roles: z
+    .array(z.enum(REGISTERABLE_ROLES))
+    .min(1)
+    .refine((roles) => new Set(roles).size === roles.length, {
+      message: 'roles must not contain duplicates',
+    }),
 });
 
 const loginSchema = z.object({

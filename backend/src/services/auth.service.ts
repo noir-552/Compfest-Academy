@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { generateToken, hashToken } from '../lib/tokens';
 import { ApiError } from '../lib/api-error';
@@ -49,17 +50,25 @@ export async function register(input: RegisterInput): Promise<{ user: PublicUser
 
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_COST);
 
-  const user = await prisma.user.create({
-    data: {
-      username: input.username,
-      email: input.email,
-      phone: input.phone,
-      passwordHash,
-      roles: {
-        create: input.roles.map((roleType) => ({ roleType })),
+  let user: UserRecord;
+  try {
+    user = await prisma.user.create({
+      data: {
+        username: input.username,
+        email: input.email,
+        phone: input.phone,
+        passwordHash,
+        roles: {
+          create: input.roles.map((roleType) => ({ roleType })),
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new ApiError(409, 'USERNAME_TAKEN', 'Username is already taken');
+    }
+    throw err;
+  }
 
   return { user: toPublicUser(user), roles: input.roles };
 }
