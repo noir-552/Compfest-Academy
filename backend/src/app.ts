@@ -4,6 +4,7 @@ import { errorMiddleware } from './middleware/error';
 import authRoutes from './routes/auth.routes';
 import reviewRoutes from './routes/review.routes';
 import sellerRoutes from './routes/seller.routes';
+import buyerRoutes from './routes/buyer.routes';
 import catalogRoutes from './routes/catalog.routes';
 
 export function createApp(): Express {
@@ -18,6 +19,7 @@ export function createApp(): Express {
   app.use('/api/auth', authRoutes);
   app.use('/api/reviews', reviewRoutes);
   app.use('/api/seller', sellerRoutes);
+  app.use('/api/buyer', buyerRoutes);
   app.use('/api', catalogRoutes);
 
   app.use('/api', (_req, _res, next) => {
