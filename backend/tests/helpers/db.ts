@@ -27,6 +27,8 @@ export async function resetDb(): Promise<void> {
   await prisma.orderStatusHistory.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
+  await prisma.voucher.deleteMany();
+  await prisma.promo.deleteMany();
   await prisma.product.deleteMany();
   await prisma.store.deleteMany();
   await prisma.walletTransaction.deleteMany();
@@ -101,6 +103,35 @@ export async function registerAndLogin(
         `registerAndLogin: setting activeRole failed with ${activeRoleRes.status}: ${JSON.stringify(activeRoleRes.body)}`,
       );
     }
+  }
+
+  return { token, username, password };
+}
+
+/**
+ * Registers + logs in a user, then grants ADMIN directly via prisma (the
+ * public /api/auth/register endpoint only accepts REGISTERABLE_ROLES —
+ * BUYER/SELLER/DRIVER — so ADMIN can never be requested through it) and
+ * activates that role. Mirrors how `create-admin` provisions real admins.
+ */
+export async function registerAndLoginAdmin(
+  app: Express,
+  opts: Omit<RegisterAndLoginOptions, 'roles' | 'activeRole'> = {},
+): Promise<RegisterAndLoginResult> {
+  const { token, username, password } = await registerAndLogin(app, { ...opts, roles: ['BUYER'] });
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { username } });
+  await prisma.userRole.create({ data: { userId: user.id, roleType: 'ADMIN' } });
+
+  const activeRoleRes = await request(app)
+    .post('/api/auth/active-role')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ role: 'ADMIN' });
+
+  if (activeRoleRes.status !== 200) {
+    throw new Error(
+      `registerAndLoginAdmin: setting activeRole failed with ${activeRoleRes.status}: ${JSON.stringify(activeRoleRes.body)}`,
+    );
   }
 
   return { token, username, password };

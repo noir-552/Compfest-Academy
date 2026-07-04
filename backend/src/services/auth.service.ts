@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { generateToken, hashToken } from '../lib/tokens';
 import { ApiError } from '../lib/api-error';
+import { now } from '../lib/clock';
 import type { RoleType } from '../lib/roles';
 
 const BCRYPT_COST = 10;
@@ -97,7 +98,7 @@ export async function login(
 
   const token = generateToken();
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(now().getTime() + SESSION_TTL_MS);
 
   await prisma.session.create({
     data: {
