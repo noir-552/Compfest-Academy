@@ -76,6 +76,15 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('rejects duplicate roles in the roles array with 400 VALIDATION_ERROR', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ ...validRegisterBody, username: 'dupe_roles', roles: ['BUYER', 'BUYER'] });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
 });
 
 describe('POST /api/auth/login', () => {
