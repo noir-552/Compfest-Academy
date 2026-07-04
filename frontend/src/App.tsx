@@ -7,6 +7,7 @@ import { Footer } from './ui/Footer';
 import { Landing } from './pages/Landing';
 import { Catalog } from './pages/Catalog';
 import { ProductDetail } from './pages/ProductDetail';
+import { StorePage } from './pages/StorePage';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { RolePicker } from './pages/RolePicker';
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { path: '/', element: <Landing /> },
       { path: '/catalog', element: <Catalog /> },
       { path: '/product/:id', element: <ProductDetail /> },
+      { path: '/stores/:id', element: <StorePage /> },
       { path: '/login', element: <Login /> },
       { path: '/register', element: <Register /> },
       {
