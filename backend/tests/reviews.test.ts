@@ -2,6 +2,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
+import { generateToken, hashToken } from '../src/lib/tokens';
 import { resetDb, registerAndLogin } from './helpers/db';
 
 const app = createApp();
@@ -45,6 +46,31 @@ describe('POST /api/reviews', () => {
     const res = await request(app)
       .post('/api/reviews')
       .set('Authorization', 'Bearer not-a-real-token')
+      .send(validReview);
+
+    expect(res.status).toBe(201);
+
+    const stored = await prisma.appReview.findUniqueOrThrow({ where: { id: res.body.review.id } });
+    expect(stored.userId).toBeNull();
+  });
+
+  it('succeeds as guest (201) when a Bearer token with expired session is present', async () => {
+    const { username } = await registerAndLogin(app, { roles: ['BUYER'], username: 'expired_session_user' });
+    const user = await prisma.user.findUniqueOrThrow({ where: { username } });
+
+    const rawToken = generateToken();
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(rawToken),
+        activeRole: 'BUYER',
+        expiresAt: new Date(Date.now() - 1000),
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${rawToken}`)
       .send(validReview);
 
     expect(res.status).toBe(201);
