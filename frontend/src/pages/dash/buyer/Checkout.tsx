@@ -39,16 +39,26 @@ export function Checkout() {
 
   useEffect(() => {
     if (!addressId) return;
+    let ignored = false;
     setPreviewLoading(true);
     setPreviewError(null);
     buyerApi
       .previewCheckout({ addressId, deliveryMethod })
-      .then((res) => setPreview(res))
-      .catch((err) => {
-        setPreview(null);
-        setPreviewError(err instanceof ApiClientError ? err.message : 'Gagal memuat ringkasan checkout.');
+      .then((res) => {
+        if (!ignored) setPreview(res);
       })
-      .finally(() => setPreviewLoading(false));
+      .catch((err) => {
+        if (!ignored) {
+          setPreview(null);
+          setPreviewError(err instanceof ApiClientError ? err.message : 'Gagal memuat ringkasan checkout.');
+        }
+      })
+      .finally(() => {
+        if (!ignored) setPreviewLoading(false);
+      });
+    return () => {
+      ignored = true;
+    };
   }, [addressId, deliveryMethod]);
 
   async function handlePay() {
