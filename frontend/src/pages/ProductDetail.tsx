@@ -1,15 +1,30 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getProduct, type PublicProductDetail } from '../api/catalog';
+import * as buyerApi from '../api/buyer';
+import { ApiClientError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
+import { useCart } from '../cart/CartContext';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Modal } from '../ui/Modal';
 
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<PublicProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  const [quantity, setQuantity] = useState(1);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSuccess, setAddSuccess] = useState(false);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const [resolvingConflict, setResolvingConflict] = useState(false);
+
+  const { user, activeRole } = useAuth();
+  const { refreshCart } = useCart();
 
   useEffect(() => {
     if (!id) {
@@ -24,6 +39,44 @@ export function ProductDetail() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleAddToCart() {
+    if (!product) return;
+    setAddError(null);
+    setAddSuccess(false);
+    setAdding(true);
+    try {
+      await buyerApi.addCartItem(product.id, quantity);
+      refreshCart();
+      setAddSuccess(true);
+    } catch (err) {
+      if (err instanceof ApiClientError && err.code === 'CART_STORE_CONFLICT') {
+        setConflictOpen(true);
+      } else {
+        setAddError(err instanceof ApiClientError ? err.message : 'Gagal menambahkan ke keranjang.');
+      }
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleClearAndAdd() {
+    if (!product) return;
+    setResolvingConflict(true);
+    setAddError(null);
+    try {
+      await buyerApi.clearCart();
+      await buyerApi.addCartItem(product.id, quantity);
+      refreshCart();
+      setConflictOpen(false);
+      setAddSuccess(true);
+    } catch (err) {
+      setAddError(err instanceof ApiClientError ? err.message : 'Gagal menambahkan ke keranjang.');
+      setConflictOpen(false);
+    } finally {
+      setResolvingConflict(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -43,6 +96,8 @@ export function ProductDetail() {
       </div>
     );
   }
+
+  const canAddToCart = user && activeRole === 'BUYER';
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12">
@@ -70,11 +125,75 @@ export function ProductDetail() {
               <p className="mt-1 text-sm text-slate-600">{product.store.description}</p>
             )}
           </Card>
-          <Button type="button" className="mt-2 w-fit">
-            Tambah ke keranjang
-          </Button>
+
+          {canAddToCart && product.stock > 0 && (
+            <div className="flex items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="quantity" className="text-sm font-medium text-slate-700">
+                  Jumlah
+                </label>
+                <input
+                  id="quantity"
+                  type="number"
+                  min={1}
+                  max={product.stock}
+                  step={1}
+                  value={quantity}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setQuantity(Number.isInteger(value) && value >= 1 ? Math.min(value, product.stock) : 1);
+                  }}
+                  className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                />
+              </div>
+              <Button type="button" onClick={handleAddToCart} disabled={adding}>
+                {adding ? 'Menambahkan...' : 'Tambah ke keranjang'}
+              </Button>
+            </div>
+          )}
+
+          {product.stock === 0 && <Badge tone="warning">Stok habis</Badge>}
+
+          {!canAddToCart && (
+            <p className="text-sm text-slate-500">
+              <Link to="/login" className="font-medium text-teal-700">
+                Masuk
+              </Link>{' '}
+              sebagai pembeli untuk menambahkan produk ke keranjang.
+            </p>
+          )}
+
+          {addError && (
+            <p className="text-sm text-red-600" role="alert">
+              {addError}
+            </p>
+          )}
+          {addSuccess && (
+            <p className="text-sm text-emerald-600" role="status">
+              Ditambahkan ke keranjang.{' '}
+              <Link to="/dashboard/buyer/cart" className="font-medium underline">
+                Lihat keranjang
+              </Link>
+            </p>
+          )}
         </div>
       </div>
+
+      <Modal open={conflictOpen} onClose={() => setConflictOpen(false)} title="Keranjang berisi toko lain">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-slate-600">
+            Keranjangmu berisi produk dari toko lain. Kamu hanya bisa checkout dari satu toko dalam satu waktu.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConflictOpen(false)}>
+              Batal
+            </Button>
+            <Button variant="danger" onClick={handleClearAndAdd} disabled={resolvingConflict}>
+              {resolvingConflict ? 'Memproses...' : 'Kosongkan keranjang & tambahkan'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

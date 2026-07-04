@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
+import { useCart } from '../cart/CartContext';
 import type { RoleType } from '../api/auth';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -12,6 +13,7 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
 
 export function Navbar() {
   const { user, roles, activeRole, logout, setActiveRole } = useAuth();
+  const { itemCount } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -54,6 +56,22 @@ export function Navbar() {
     <Badge tone="warning">Pilih peran</Badge>
   );
 
+  const cartLink = user && activeRole === 'BUYER' && (
+    <NavLink to="/dashboard/buyer/cart" className={navLinkClass}>
+      <span className="relative">
+        Keranjang
+        {itemCount > 0 && (
+          <span
+            aria-label={`${itemCount} item di keranjang`}
+            className="absolute -right-4 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-600 px-1 text-[10px] font-semibold text-white"
+          >
+            {itemCount}
+          </span>
+        )}
+      </span>
+    </NavLink>
+  );
+
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -73,6 +91,7 @@ export function Navbar() {
               Dashboard
             </NavLink>
           )}
+          {cartLink}
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
@@ -123,6 +142,15 @@ export function Navbar() {
             {user && activeRole && (
               <NavLink to={DASHBOARD_PATH[activeRole]} className={navLinkClass} onClick={() => setMobileOpen(false)}>
                 Dashboard
+              </NavLink>
+            )}
+            {user && activeRole === 'BUYER' && (
+              <NavLink
+                to="/dashboard/buyer/cart"
+                className={navLinkClass}
+                onClick={() => setMobileOpen(false)}
+              >
+                Keranjang{itemCount > 0 ? ` (${itemCount})` : ''}
               </NavLink>
             )}
 
