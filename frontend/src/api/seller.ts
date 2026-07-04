@@ -1,6 +1,8 @@
 import { apiFetch } from './client';
+import type { OrderDetail } from './buyer';
 
-// Authenticated seller-only reads/writes. Mirrors backend/src/services/{store,product}.service.ts.
+// Authenticated seller-only reads/writes. Mirrors
+// backend/src/services/{store,product,order,report}.service.ts.
 
 export interface SellerStore {
   id: string;
@@ -69,4 +71,35 @@ export function updateProduct(id: string, input: ProductInput): Promise<{ produc
 
 export function deleteProduct(id: string): Promise<Record<string, never>> {
   return apiFetch<Record<string, never>>(`/seller/products/${id}`, { method: 'DELETE' });
+}
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+export interface SellerOrder extends OrderDetail {
+  buyerUsername: string;
+}
+
+export function listIncomingOrders(): Promise<{ orders: SellerOrder[] }> {
+  return apiFetch<{ orders: SellerOrder[] }>('/seller/orders');
+}
+
+/** Transitions SEDANG_DIKEMAS -> MENUNGGU_PENGIRIM. Throws 409 INVALID_STATUS if already processed. */
+export function processOrder(id: string): Promise<{ order: SellerOrder }> {
+  return apiFetch<{ order: SellerOrder }>(`/seller/orders/${id}/process`, { method: 'POST' });
+}
+
+// ---------------------------------------------------------------------------
+// Report
+// ---------------------------------------------------------------------------
+
+export interface SellerReport {
+  income: number;
+  orderCount: number;
+  byStatus: Record<string, number>;
+}
+
+export function getSellerReport(): Promise<SellerReport> {
+  return apiFetch<SellerReport>('/seller/report');
 }

@@ -20,7 +20,11 @@ import { Cart } from './pages/dash/buyer/Cart';
 import { Checkout } from './pages/dash/buyer/Checkout';
 import { Orders } from './pages/dash/buyer/Orders';
 import { OrderDetail } from './pages/dash/buyer/OrderDetail';
+import { Report as BuyerReport } from './pages/dash/buyer/Report';
 import { SellerDash } from './pages/dash/SellerDash';
+import { StoreOverview } from './pages/dash/seller/StoreOverview';
+import { IncomingOrders } from './pages/dash/seller/IncomingOrders';
+import { Report as SellerReport } from './pages/dash/seller/Report';
 import { DriverDash } from './pages/dash/DriverDash';
 import { AdminDash } from './pages/dash/AdminDash';
 
@@ -65,13 +69,25 @@ const router = createBrowserRouter([
                   { path: 'checkout', element: <Checkout /> },
                   { path: 'orders', element: <Orders /> },
                   { path: 'orders/:id', element: <OrderDetail /> },
+                  { path: 'report', element: <BuyerReport /> },
                 ],
               },
             ],
           },
           {
             element: <RequireRole role="SELLER" />,
-            children: [{ path: '/dashboard/seller', element: <SellerDash /> }],
+            children: [
+              {
+                path: '/dashboard/seller',
+                element: <SellerDash />,
+                children: [
+                  { index: true, element: <Navigate to="store" replace /> },
+                  { path: 'store', element: <StoreOverview /> },
+                  { path: 'orders', element: <IncomingOrders /> },
+                  { path: 'report', element: <SellerReport /> },
+                ],
+              },
+            ],
           },
           {
             element: <RequireRole role="DRIVER" />,
