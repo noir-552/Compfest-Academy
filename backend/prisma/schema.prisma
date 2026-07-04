@@ -21,6 +21,9 @@ model User {
   addresses Address[]
   cart      Cart?
   orders    Order[]
+
+  createdVouchers Voucher[]
+  createdPromos   Promo[]
 }
 
 model UserRole {
@@ -145,6 +148,8 @@ model Order {
   buyerUserId           String
   storeId               String
   addressId             String
+  voucherId             String?
+  promoId               String?
   deliveryMethod        String
   subtotal              Int
   discountAmount        Int      @default(0)
@@ -164,10 +169,40 @@ model Order {
   buyer   User    @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
   store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  voucher Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  promo   Promo?   @relation(fields: [promoId], references: [id], onDelete: SetNull)
 
   items              OrderItem[]
   statusHistory      OrderStatusHistory[]
   walletTransactions WalletTransaction[]
+}
+
+model Voucher {
+  id               String   @id @default(uuid())
+  createdByAdminId String
+  code             String   @unique
+  discountType     String
+  discountValue    Int
+  usageLimit       Int
+  usageRemaining   Int
+  expiryDate       DateTime
+  createdAt        DateTime @default(now())
+
+  createdByAdmin User    @relation(fields: [createdByAdminId], references: [id], onDelete: Cascade)
+  orders         Order[]
+}
+
+model Promo {
+  id               String   @id @default(uuid())
+  createdByAdminId String
+  code             String   @unique
+  discountType     String
+  discountValue    Int
+  expiryDate       DateTime
+  createdAt        DateTime @default(now())
+
+  createdByAdmin User    @relation(fields: [createdByAdminId], references: [id], onDelete: Cascade)
+  orders         Order[]
 }
 
 model OrderItem {

@@ -3,6 +3,7 @@ import type { Session, User, UserRole } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { hashToken } from '../lib/tokens';
 import { ApiError } from '../lib/api-error';
+import { now } from '../lib/clock';
 import type { RoleType } from '../lib/roles';
 
 export interface AuthContext {
@@ -40,7 +41,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     include: { user: { include: { roles: true } } },
   });
 
-  if (!session || session.expiresAt.getTime() < Date.now()) {
+  if (!session || session.expiresAt.getTime() < now().getTime()) {
     next(new ApiError(401, 'UNAUTHENTICATED', 'Session expired or not found'));
     return;
   }
@@ -67,7 +68,7 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
     include: { user: { include: { roles: true } } },
   });
 
-  if (!session || session.expiresAt.getTime() < Date.now()) {
+  if (!session || session.expiresAt.getTime() < now().getTime()) {
     next();
     return;
   }

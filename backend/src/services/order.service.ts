@@ -2,18 +2,17 @@ import { prisma } from '../lib/prisma';
 import { ApiError } from '../lib/api-error';
 import { SLA_DAYS } from '../lib/money';
 import type { DeliveryMethod } from '../lib/money';
+import { now } from '../lib/clock';
 import { getOwnStoreOrThrow } from './store.service';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Computes the SLA deadline for a freshly-created order.
- * Level 3 anchors to the real wall clock (`new Date()`); Level 6 introduces
- * a virtual clock, at which point only this function needs to change to
- * accept/return against `virtualNow()` instead.
+ * Computes the SLA deadline for a freshly-created order, anchored to
+ * `now()` (see `src/lib/clock.ts` — Level 6 swaps in a virtual clock there).
  */
 export function computeSlaDeadline(method: DeliveryMethod): Date {
-  return new Date(Date.now() + SLA_DAYS[method] * MS_PER_DAY);
+  return new Date(now().getTime() + SLA_DAYS[method] * MS_PER_DAY);
 }
 
 export interface OrderItemView {
