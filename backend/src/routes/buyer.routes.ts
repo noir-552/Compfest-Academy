@@ -7,6 +7,13 @@ import {
   updateAddressHandler,
   deleteAddressHandler,
 } from '../controllers/address.controller';
+import {
+  getCartHandler,
+  addItemHandler,
+  updateItemHandler,
+  removeItemHandler,
+  clearCartHandler,
+} from '../controllers/cart.controller';
 
 const router = Router();
 
@@ -19,5 +26,11 @@ router.get('/addresses', listAddressesHandler);
 router.post('/addresses', createAddressHandler);
 router.put('/addresses/:id', updateAddressHandler);
 router.delete('/addresses/:id', deleteAddressHandler);
+
+router.get('/cart', getCartHandler);
+router.post('/cart/items', addItemHandler);
+router.put('/cart/items/:productId', updateItemHandler);
+router.delete('/cart/items/:productId', removeItemHandler);
+router.delete('/cart', clearCartHandler);
 
 export default router;

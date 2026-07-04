@@ -22,6 +22,8 @@ function ensureMigrated(): void {
 ensureMigrated();
 
 export async function resetDb(): Promise<void> {
+  await prisma.cartItem.deleteMany();
+  await prisma.cart.deleteMany();
   await prisma.product.deleteMany();
   await prisma.store.deleteMany();
   await prisma.walletTransaction.deleteMany();
