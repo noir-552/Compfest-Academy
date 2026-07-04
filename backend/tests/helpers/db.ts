@@ -85,7 +85,7 @@ export async function registerAndLogin(
   const loginRes = await request(app).post('/api/auth/login').send({ username, password });
 
   if (loginRes.status !== 200) {
-    throw new Error(`registerAndLogin: login failed with ${loginRes.status}: ${JSON.stringify(loginRes.body)}`);
+    throw new Error(`registerAndLogin: login failed with ${loginRes.status}: body=${JSON.stringify(loginRes.body)} text=${JSON.stringify(loginRes.text)} headers=${JSON.stringify(loginRes.headers)}`);
   }
 
   const token = loginRes.body.token as string;
