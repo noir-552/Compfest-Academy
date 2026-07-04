@@ -5,6 +5,7 @@ const TABS = [
   { to: '/dashboard/buyer/addresses', label: 'Alamat' },
   { to: '/dashboard/buyer/cart', label: 'Keranjang' },
   { to: '/dashboard/buyer/orders', label: 'Pesanan' },
+  { to: '/dashboard/buyer/report', label: 'Laporan' },
 ];
 
 function tabClass({ isActive }: { isActive: boolean }): string {

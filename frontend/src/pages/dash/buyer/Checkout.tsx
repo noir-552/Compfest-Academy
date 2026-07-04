@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import * as buyerApi from '../../../api/buyer';
+import type { DiscountValidation } from '../../../api/discounts';
 import { ApiClientError } from '../../../api/client';
 import { useCart } from '../../../cart/CartContext';
 import { CheckoutSummary } from '../../../components/CheckoutSummary';
+import { DiscountCodeField } from '../../../components/DiscountCodeField';
+import { Badge } from '../../../ui/Badge';
 import { Button } from '../../../ui/Button';
 import { Card } from '../../../ui/Card';
+import { formatRupiah } from '../../../lib/format';
 
 const DELIVERY_METHODS: buyerApi.DeliveryMethod[] = ['INSTANT', 'NEXT_DAY', 'REGULAR'];
 
@@ -14,6 +18,8 @@ export function Checkout() {
   const [addressId, setAddressId] = useState<string>('');
   const [deliveryMethod, setDeliveryMethod] = useState<buyerApi.DeliveryMethod>('REGULAR');
   const [preview, setPreview] = useState<buyerApi.CheckoutPreview | null>(null);
+  const [voucherApplied, setVoucherApplied] = useState<DiscountValidation | null>(null);
+  const [promoApplied, setPromoApplied] = useState<DiscountValidation | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -37,13 +43,21 @@ export function Checkout() {
       .finally(() => setLoading(false));
   }, []);
 
+  const voucherCode = voucherApplied?.code;
+  const promoCode = promoApplied?.code;
+
   useEffect(() => {
     if (!addressId) return;
     let ignored = false;
     setPreviewLoading(true);
     setPreviewError(null);
     buyerApi
-      .previewCheckout({ addressId, deliveryMethod })
+      .previewCheckout({
+        addressId,
+        deliveryMethod,
+        ...(voucherCode ? { voucherCode } : {}),
+        ...(promoCode ? { promoCode } : {}),
+      })
       .then((res) => {
         if (!ignored) setPreview(res);
       })
@@ -59,14 +73,19 @@ export function Checkout() {
     return () => {
       ignored = true;
     };
-  }, [addressId, deliveryMethod]);
+  }, [addressId, deliveryMethod, voucherCode, promoCode]);
 
   async function handlePay() {
     if (!addressId) return;
     setPaying(true);
     setPayError(null);
     try {
-      const res = await buyerApi.checkout({ addressId, deliveryMethod });
+      const res = await buyerApi.checkout({
+        addressId,
+        deliveryMethod,
+        ...(voucherCode ? { voucherCode } : {}),
+        ...(promoCode ? { promoCode } : {}),
+      });
       refreshCart();
       navigate(`/dashboard/buyer/orders/${res.order.id}`);
     } catch (err) {
@@ -167,12 +186,58 @@ export function Checkout() {
       </Card>
 
       <Card>
+        <h2 className="mb-3 text-sm font-semibold text-slate-900">Kode diskon</h2>
+        <div className="flex flex-col gap-4">
+          <DiscountCodeField
+            id="voucher-code"
+            label="Kode Voucher"
+            applied={voucherApplied}
+            subtotal={preview?.totals.subtotal ?? null}
+            disabled={paying}
+            onApply={setVoucherApplied}
+            onRemove={() => setVoucherApplied(null)}
+          />
+          <DiscountCodeField
+            id="promo-code"
+            label="Kode Promo"
+            applied={promoApplied}
+            subtotal={preview?.totals.subtotal ?? null}
+            disabled={paying}
+            onApply={setPromoApplied}
+            onRemove={() => setPromoApplied(null)}
+          />
+        </div>
+      </Card>
+
+      <Card>
         <h2 className="mb-3 text-sm font-semibold text-slate-900">Ringkasan</h2>
         {previewLoading && <p className="text-sm text-slate-500">Memuat ringkasan...</p>}
         {previewError && (
           <p className="text-sm text-red-600" role="alert">
             {previewError}
           </p>
+        )}
+        {!previewLoading && !previewError && preview && (preview.discounts.voucher || preview.discounts.promo) && (
+          <div className="mb-3 flex flex-col gap-1.5 rounded-lg bg-slate-50 p-3">
+            {preview.discounts.voucher && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <Badge tone="success">Voucher</Badge>
+                  <span className="text-slate-700">{preview.discounts.voucher.code}</span>
+                </span>
+                <span className="text-emerald-700">-{formatRupiah(preview.discounts.voucher.amount)}</span>
+              </div>
+            )}
+            {preview.discounts.promo && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <Badge tone="info">Promo</Badge>
+                  <span className="text-slate-700">{preview.discounts.promo.code}</span>
+                </span>
+                <span className="text-teal-700">-{formatRupiah(preview.discounts.promo.amount)}</span>
+              </div>
+            )}
+          </div>
         )}
         {!previewLoading && !previewError && preview && (
           <CheckoutSummary

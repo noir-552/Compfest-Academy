@@ -154,6 +154,8 @@ export function clearCart(): Promise<{ cart: Cart }> {
 export interface CheckoutInput {
   addressId: string;
   deliveryMethod: DeliveryMethod;
+  voucherCode?: string;
+  promoCode?: string;
 }
 
 export interface CheckoutPreviewLineItem {
@@ -172,10 +174,21 @@ export interface CheckoutTotals {
   finalTotal: number;
 }
 
+export interface DiscountLineView {
+  code: string;
+  amount: number;
+}
+
+export interface DiscountBreakdown {
+  voucher: DiscountLineView | null;
+  promo: DiscountLineView | null;
+}
+
 export interface CheckoutPreview {
   storeId: string;
   items: CheckoutPreviewLineItem[];
   totals: CheckoutTotals;
+  discounts: DiscountBreakdown;
 }
 
 export function previewCheckout(input: CheckoutInput): Promise<CheckoutPreview> {
@@ -240,4 +253,18 @@ export function listOrders(): Promise<{ orders: OrderSummary[] }> {
 
 export function getOrder(id: string): Promise<{ order: OrderDetail }> {
   return apiFetch<{ order: OrderDetail }>(`/buyer/orders/${id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Report
+// ---------------------------------------------------------------------------
+
+export interface BuyerReport {
+  totalSpent: number;
+  orderCount: number;
+  byStatus: Record<string, number>;
+}
+
+export function getBuyerReport(): Promise<BuyerReport> {
+  return apiFetch<BuyerReport>('/buyer/report');
 }
