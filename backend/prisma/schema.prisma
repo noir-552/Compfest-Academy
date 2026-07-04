@@ -16,6 +16,7 @@ model User {
 
   roles    UserRole[]
   sessions Session[]
+  store    Store?
 }
 
 model UserRole {
@@ -46,4 +47,28 @@ model AppReview {
   rating       Int
   comment      String
   createdAt    DateTime @default(now())
+}
+
+model Store {
+  id           String   @id @default(uuid())
+  sellerUserId String   @unique
+  storeName    String   @unique
+  description  String?
+  createdAt    DateTime @default(now())
+
+  seller   User      @relation(fields: [sellerUserId], references: [id], onDelete: Cascade)
+  products Product[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String
+  description String?
+  price       Int
+  stock       Int
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
