@@ -1,13 +1,14 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../lib/api-error';
-import { computeTotals } from '../lib/money';
-import type { DeliveryMethod, TotalsResult } from '../lib/money';
+import { computeTotals, computeDiscount } from '../lib/money';
+import type { DeliveryMethod, DiscountInput, TotalsResult } from '../lib/money';
 import { getOrCreateCart, pruneCart } from './cart.service';
 import type { LiveCartItem } from './cart.service';
 import { getOrCreateWallet } from './wallet.service';
-import { computeSlaDeadline } from './order.service';
+import { computeSlaDeadline, toOrderDetail } from './order.service';
 import type { OrderDetail } from './order.service';
+import { loadVoucherForCheckout, loadPromoForCheckout, toDiscountInput } from './discount.service';
 
 /** Either the global singleton client or an interactive transaction client. */
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -15,6 +16,18 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export interface CheckoutInput {
   addressId: string;
   deliveryMethod: DeliveryMethod;
+  voucherCode?: string;
+  promoCode?: string;
+}
+
+export interface DiscountLineView {
+  code: string;
+  amount: number;
+}
+
+export interface DiscountBreakdown {
+  voucher: DiscountLineView | null;
+  promo: DiscountLineView | null;
 }
 
 export interface CheckoutLineItem {
@@ -29,6 +42,7 @@ export interface CheckoutPreview {
   storeId: string;
   items: CheckoutLineItem[];
   totals: TotalsResult;
+  discounts: DiscountBreakdown;
 }
 
 /**
@@ -76,17 +90,64 @@ async function findOwnedAddressOrThrow(
 }
 
 /**
+ * Resolves optional voucher/promo codes against `client` (re-validating
+ * expiry/exhaustion every call — see `discount.service`'s tx-aware
+ * loaders), and derives both the `computeTotals`-ready DiscountInput pair
+ * and the per-code amount breakdown returned to callers. Does not mutate
+ * anything (voucher quota decrement is the checkout transaction's job).
+ */
+async function resolveDiscounts(
+  client: Db,
+  subtotal: number,
+  voucherCode: string | undefined,
+  promoCode: string | undefined,
+): Promise<{
+  voucherId: string | null;
+  promoId: string | null;
+  voucherInput: DiscountInput | undefined;
+  promoInput: DiscountInput | undefined;
+  breakdown: DiscountBreakdown;
+}> {
+  const voucherRecord = voucherCode ? await loadVoucherForCheckout(client, voucherCode) : null;
+  const promoRecord = promoCode ? await loadPromoForCheckout(client, promoCode) : null;
+
+  const voucherInput = voucherRecord ? toDiscountInput(voucherRecord) : undefined;
+  const promoInput = promoRecord ? toDiscountInput(promoRecord) : undefined;
+
+  const { voucherAmount, promoAmount } = computeDiscount(subtotal, voucherInput, promoInput);
+
+  return {
+    voucherId: voucherRecord?.id ?? null,
+    promoId: promoRecord?.id ?? null,
+    voucherInput,
+    promoInput,
+    breakdown: {
+      voucher: voucherRecord ? { code: voucherRecord.code, amount: voucherAmount } : null,
+      promo: promoRecord ? { code: promoRecord.code, amount: promoAmount } : null,
+    },
+  };
+}
+
+/**
  * Validates the buyer's cart + address and computes totals, without writing
- * anything. Safe to call as many times as needed before checkout.
+ * anything. Safe to call as many times as needed before checkout. Accepts
+ * the same optional voucherCode/promoCode as checkout so the buyer sees the
+ * exact discounted totals before committing.
  */
 export async function previewCheckout(buyerUserId: string, input: CheckoutInput): Promise<CheckoutPreview> {
   const { storeId, liveItems } = await loadCartOrThrow(buyerUserId, prisma);
   await findOwnedAddressOrThrow(prisma, buyerUserId, input.addressId);
 
   const { items, subtotal } = buildLineItems(liveItems);
-  const totals = computeTotals(subtotal, input.deliveryMethod);
+  const { voucherInput, promoInput, breakdown } = await resolveDiscounts(
+    prisma,
+    subtotal,
+    input.voucherCode,
+    input.promoCode,
+  );
+  const totals = computeTotals(subtotal, input.deliveryMethod, voucherInput, promoInput);
 
-  return { storeId, items, totals };
+  return { storeId, items, totals, discounts: breakdown };
 }
 
 /**
@@ -103,7 +164,13 @@ export async function checkout(buyerUserId: string, input: CheckoutInput): Promi
     const address = await findOwnedAddressOrThrow(tx, buyerUserId, input.addressId);
 
     const { items, subtotal } = buildLineItems(liveItems);
-    const totals = computeTotals(subtotal, input.deliveryMethod);
+    const { voucherId, promoId, voucherInput, promoInput } = await resolveDiscounts(
+      tx,
+      subtotal,
+      input.voucherCode,
+      input.promoCode,
+    );
+    const totals = computeTotals(subtotal, input.deliveryMethod, voucherInput, promoInput);
 
     for (const item of liveItems) {
       const result = await tx.product.updateMany({
@@ -112,6 +179,19 @@ export async function checkout(buyerUserId: string, input: CheckoutInput): Promi
       });
       if (result.count === 0) {
         throw new ApiError(409, 'INSUFFICIENT_STOCK', `Stok ${item.product.name} tidak cukup`);
+      }
+    }
+
+    if (voucherId) {
+      // Conditional guard: only decrements if a unit is still available.
+      // Two concurrent checkouts racing on the last unit can never both
+      // succeed — the loser sees count 0 here and rolls back entirely.
+      const voucherUpdate = await tx.voucher.updateMany({
+        where: { id: voucherId, usageRemaining: { gt: 0 } },
+        data: { usageRemaining: { decrement: 1 } },
+      });
+      if (voucherUpdate.count === 0) {
+        throw new ApiError(409, 'DISCOUNT_EXHAUSTED', 'Discount code has no uses remaining');
       }
     }
 
@@ -131,6 +211,8 @@ export async function checkout(buyerUserId: string, input: CheckoutInput): Promi
         buyerUserId,
         storeId,
         addressId: address.id,
+        voucherId,
+        promoId,
         deliveryMethod: input.deliveryMethod,
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
@@ -172,35 +254,6 @@ export async function checkout(buyerUserId: string, input: CheckoutInput): Promi
     await tx.cartItem.deleteMany({ where: { cartId } });
     await tx.cart.update({ where: { id: cartId }, data: { storeId: null } });
 
-    return {
-      id: order.id,
-      storeId: order.storeId,
-      addressId: order.addressId,
-      deliveryMethod: order.deliveryMethod,
-      subtotal: order.subtotal,
-      discountAmount: order.discountAmount,
-      deliveryFee: order.deliveryFee,
-      ppnAmount: order.ppnAmount,
-      finalTotal: order.finalTotal,
-      currentStatus: order.currentStatus,
-      recipientNameSnapshot: order.recipientNameSnapshot,
-      phoneSnapshot: order.phoneSnapshot,
-      fullAddressSnapshot: order.fullAddressSnapshot,
-      slaDeadline: order.slaDeadline,
-      createdAt: order.createdAt,
-      items: order.items.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        productNameSnapshot: item.productNameSnapshot,
-        priceSnapshot: item.priceSnapshot,
-        quantity: item.quantity,
-      })),
-      statusHistory: order.statusHistory.map((entry) => ({
-        id: entry.id,
-        status: entry.status,
-        changedByRole: entry.changedByRole,
-        changedAt: entry.changedAt,
-      })),
-    };
+    return toOrderDetail(order);
   });
 }

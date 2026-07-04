@@ -1,9 +1,13 @@
 import { Prisma } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ApiError } from '../lib/api-error';
 import { now } from '../lib/clock';
 import { computeDiscount } from '../lib/money';
 import type { DiscountInput } from '../lib/money';
+
+/** Either the global singleton client or an interactive transaction client. */
+type Db = PrismaClient | Prisma.TransactionClient;
 
 export type DiscountType = 'PERCENT' | 'FIXED';
 
@@ -170,6 +174,27 @@ export async function getPromoById(id: string): Promise<PublicPromo> {
 }
 
 /**
+ * Shared validity rules for a fetched voucher/promo row. Kept as the single
+ * source of truth for "is this code usable right now" so callers (the
+ * standalone /api/discounts/validate endpoint and the in-transaction
+ * checkout flow) never re-implement the expiry/exhaustion checks.
+ */
+function assertVoucherActive(voucher: VoucherRecord): void {
+  if (voucher.expiryDate.getTime() < now().getTime()) {
+    throw new ApiError(409, 'DISCOUNT_EXPIRED', 'Discount code has expired');
+  }
+  if (voucher.usageRemaining <= 0) {
+    throw new ApiError(409, 'DISCOUNT_EXHAUSTED', 'Discount code has no uses remaining');
+  }
+}
+
+function assertPromoActive(promo: PromoRecord): void {
+  if (promo.expiryDate.getTime() < now().getTime()) {
+    throw new ApiError(409, 'DISCOUNT_EXPIRED', 'Discount code has expired');
+  }
+}
+
+/**
  * Looks up a discount code, voucher first then promo (exact code match on
  * either table — codes are unique per-table but the two tables are not
  * mutually exclusive namespaces). Returns the computed discount amount for
@@ -179,12 +204,7 @@ export async function getPromoById(id: string): Promise<PublicPromo> {
 export async function validateDiscountCode(code: string, subtotal: number): Promise<ValidateDiscountResult> {
   const voucher = await prisma.voucher.findUnique({ where: { code } });
   if (voucher) {
-    if (voucher.expiryDate.getTime() < now().getTime()) {
-      throw new ApiError(409, 'DISCOUNT_EXPIRED', 'Discount code has expired');
-    }
-    if (voucher.usageRemaining <= 0) {
-      throw new ApiError(409, 'DISCOUNT_EXHAUSTED', 'Discount code has no uses remaining');
-    }
+    assertVoucherActive(voucher);
     const discountInput: DiscountInput = {
       discountType: voucher.discountType as DiscountType,
       discountValue: voucher.discountValue,
@@ -201,9 +221,7 @@ export async function validateDiscountCode(code: string, subtotal: number): Prom
 
   const promo = await prisma.promo.findUnique({ where: { code } });
   if (promo) {
-    if (promo.expiryDate.getTime() < now().getTime()) {
-      throw new ApiError(409, 'DISCOUNT_EXPIRED', 'Discount code has expired');
-    }
+    assertPromoActive(promo);
     const discountInput: DiscountInput = {
       discountType: promo.discountType as DiscountType,
       discountValue: promo.discountValue,
@@ -219,4 +237,39 @@ export async function validateDiscountCode(code: string, subtotal: number): Prom
   }
 
   throw new ApiError(404, 'DISCOUNT_NOT_FOUND', 'Discount code not found');
+}
+
+/**
+ * Tx-aware voucher lookup for checkout: re-validates the code against the
+ * SAME rules as `validateDiscountCode` (expiry, exhaustion), but accepts a
+ * `Db` client so it can run inside the checkout's interactive transaction
+ * and see a consistent snapshot. Does NOT decrement usage — the caller
+ * (checkout.service) does that via a conditional `updateMany` guard so a
+ * concurrent checkout racing on the last unit is caught atomically even if
+ * this pre-check passes.
+ */
+export async function loadVoucherForCheckout(client: Db, code: string): Promise<VoucherRecord> {
+  const voucher = await client.voucher.findUnique({ where: { code } });
+  if (!voucher) {
+    throw new ApiError(404, 'DISCOUNT_NOT_FOUND', 'Discount code not found');
+  }
+  assertVoucherActive(voucher);
+  return voucher;
+}
+
+/** Tx-aware promo lookup for checkout — see `loadVoucherForCheckout`. */
+export async function loadPromoForCheckout(client: Db, code: string): Promise<PromoRecord> {
+  const promo = await client.promo.findUnique({ where: { code } });
+  if (!promo) {
+    throw new ApiError(404, 'DISCOUNT_NOT_FOUND', 'Discount code not found');
+  }
+  assertPromoActive(promo);
+  return promo;
+}
+
+export function toDiscountInput(record: { discountType: string; discountValue: number }): DiscountInput {
+  return {
+    discountType: record.discountType as DiscountType,
+    discountValue: record.discountValue,
+  };
 }

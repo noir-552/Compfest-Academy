@@ -8,6 +8,8 @@ const deliveryMethodSchema = z.enum(['INSTANT', 'NEXT_DAY', 'REGULAR']);
 const checkoutSchema = z.object({
   addressId: z.string().min(1),
   deliveryMethod: deliveryMethodSchema,
+  voucherCode: z.string().min(1).optional(),
+  promoCode: z.string().min(1).optional(),
 });
 
 function requireAuth(req: Request) {
