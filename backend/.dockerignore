@@ -1,0 +1,14 @@
+node_modules
+dist
+dev.db
+test.db
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+.env
+.impeccable
+.superpowers
+coverage
+.nyc_output
+*.tsbuildinfo

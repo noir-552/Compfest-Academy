@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.*
+.impeccable
+.superpowers
+coverage
+.nyc_output
+*.tsbuildinfo
