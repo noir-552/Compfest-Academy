@@ -2,22 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import * as buyerApi from '../../../api/buyer';
 import { formatRupiah } from '../../../lib/format';
-import { Badge } from '../../../ui/Badge';
 import { Card } from '../../../ui/Card';
-
-const STATUS_LABEL: Record<string, string> = {
-  SEDANG_DIKEMAS: 'Sedang Dikemas',
-  MENUNGGU_PENGIRIM: 'Menunggu Pengirim',
-  SEDANG_DIKIRIM: 'Sedang Dikirim',
-  PESANAN_SELESAI: 'Pesanan Selesai',
-  DIKEMBALIKAN: 'Dikembalikan',
-};
-
-function statusTone(status: string): 'neutral' | 'success' | 'warning' | 'info' {
-  if (status === 'PESANAN_SELESAI') return 'success';
-  if (status === 'DIKEMBALIKAN') return 'warning';
-  return 'info';
-}
+import { EmptyState } from '../../../ui/EmptyState';
+import { SkeletonList } from '../../../ui/Skeleton';
+import { StatusPill } from '../../../ui/StatusPill';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('id-ID', { dateStyle: 'medium' });
@@ -40,11 +28,7 @@ export function Orders() {
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold text-slate-900">Pesanan</h1>
 
-      {loading && (
-        <Card>
-          <p className="text-sm text-slate-500">Memuat pesanan...</p>
-        </Card>
-      )}
+      {loading && <SkeletonList rows={3} />}
       {error && (
         <Card>
           <p className="text-sm text-red-600" role="alert">
@@ -54,7 +38,15 @@ export function Orders() {
       )}
       {!loading && !error && orders.length === 0 && (
         <Card>
-          <p className="text-sm text-slate-500">Belum ada pesanan.</p>
+          <EmptyState
+            heading="Belum ada pesanan"
+            teachLine="Pesananmu akan muncul di sini setelah kamu check-out dari keranjang."
+            action={
+              <Link to="/catalog" className="text-sm font-medium text-teal-700">
+                Jelajahi katalog →
+              </Link>
+            }
+          />
         </Card>
       )}
 
@@ -69,10 +61,8 @@ export function Orders() {
                     <p className="text-xs text-slate-500">{formatDate(order.createdAt)}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <p className="text-sm font-semibold text-slate-900">{formatRupiah(order.finalTotal)}</p>
-                    <Badge tone={statusTone(order.currentStatus)}>
-                      {STATUS_LABEL[order.currentStatus] ?? order.currentStatus}
-                    </Badge>
+                    <p className="tabular text-sm font-semibold text-slate-900">{formatRupiah(order.finalTotal)}</p>
+                    <StatusPill status={order.currentStatus} />
                   </div>
                 </div>
               </Card>

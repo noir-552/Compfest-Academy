@@ -55,37 +55,35 @@ export function OrderDetail() {
         <h1 className="mt-2 text-2xl font-bold text-slate-900">Pesanan #{order.id.slice(0, 8)}</h1>
       </div>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Status pesanan</h2>
+      <Card title="Status pesanan">
         <OrderStatusTimeline statusHistory={order.statusHistory} currentStatus={order.currentStatus} />
       </Card>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Alamat pengiriman</h2>
+      <Card title="Alamat pengiriman">
         <p className="text-sm font-medium text-slate-900">{order.recipientNameSnapshot}</p>
         <p className="text-sm text-slate-600">{order.phoneSnapshot}</p>
         <p className="mt-1 text-sm text-slate-500">{order.fullAddressSnapshot}</p>
       </Card>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Item pesanan</h2>
+      <Card title="Item pesanan">
         <div className="flex flex-col gap-3">
           {order.items.map((item) => (
             <div key={item.id} className="flex items-center justify-between text-sm">
               <div>
                 <p className="font-medium text-slate-900">{item.productNameSnapshot}</p>
-                <p className="text-slate-500">
+                <p className="tabular text-slate-500">
                   {item.quantity} × {formatRupiah(item.priceSnapshot)}
                 </p>
               </div>
-              <p className="font-semibold text-slate-900">{formatRupiah(item.priceSnapshot * item.quantity)}</p>
+              <p className="tabular font-semibold text-slate-900">
+                {formatRupiah(item.priceSnapshot * item.quantity)}
+              </p>
             </div>
           ))}
         </div>
       </Card>
 
-      <Card>
-        <h2 className="mb-3 text-sm font-semibold text-slate-900">Rincian pembayaran</h2>
+      <Card title="Rincian pembayaran">
         <CheckoutSummary
           subtotal={order.subtotal}
           discountAmount={order.discountAmount}

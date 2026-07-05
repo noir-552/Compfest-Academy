@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import * as adminApi from '../../../api/admin';
 import { formatRupiah } from '../../../lib/format';
-import { Badge } from '../../../ui/Badge';
 import { Card } from '../../../ui/Card';
+import { EmptyState } from '../../../ui/EmptyState';
+import { StatusPill } from '../../../ui/StatusPill';
 import { Table, type TableColumn } from '../../../ui/Table';
-import { ORDER_STATUS_LABEL, orderStatusTone } from './statusLabels';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
@@ -17,7 +17,7 @@ const PENDING_COLUMNS: TableColumn<adminApi.OverdueOrder>[] = [
   {
     key: 'currentStatus',
     header: 'Status',
-    render: (o) => <Badge tone={orderStatusTone(o.currentStatus)}>{ORDER_STATUS_LABEL[o.currentStatus] ?? o.currentStatus}</Badge>,
+    render: (o) => <StatusPill status={o.currentStatus} />,
   },
   { key: 'finalTotal', header: 'Total', render: (o) => formatRupiah(o.finalTotal) },
   { key: 'slaDeadline', header: 'Batas SLA', render: (o) => formatDate(o.slaDeadline) },
@@ -75,7 +75,12 @@ export function Overdue() {
           columns={PENDING_COLUMNS}
           rows={overdue.pending}
           rowKey={(o) => o.id}
-          emptyMessage="Tidak ada pesanan yang melewati batas SLA."
+          emptyMessage={
+            <EmptyState
+              heading="Tidak ada pesanan terlambat"
+              teachLine="Semua pesanan masih dalam batas SLA. Sweep berikutnya akan memproses yang lewat."
+            />
+          }
         />
       </Card>
 
@@ -87,7 +92,12 @@ export function Overdue() {
           columns={RETURNED_COLUMNS}
           rows={overdue.returned}
           rowKey={(o) => o.id}
-          emptyMessage="Belum ada pesanan yang dikembalikan."
+          emptyMessage={
+            <EmptyState
+              heading="Belum ada pesanan yang dikembalikan"
+              teachLine="Pesanan yang melewati SLA dan disapu otomatis akan muncul di sini."
+            />
+          }
         />
       </Card>
     </div>

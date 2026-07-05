@@ -3,23 +3,11 @@ import * as sellerApi from '../../../api/seller';
 import { ApiClientError } from '../../../api/client';
 import { OrderStatusTimeline } from '../../../components/OrderStatusTimeline';
 import { formatRupiah } from '../../../lib/format';
-import { Badge } from '../../../ui/Badge';
 import { Button } from '../../../ui/Button';
 import { Card } from '../../../ui/Card';
-
-const STATUS_LABEL: Record<string, string> = {
-  SEDANG_DIKEMAS: 'Sedang Dikemas',
-  MENUNGGU_PENGIRIM: 'Menunggu Pengirim',
-  SEDANG_DIKIRIM: 'Sedang Dikirim',
-  PESANAN_SELESAI: 'Pesanan Selesai',
-  DIKEMBALIKAN: 'Dikembalikan',
-};
-
-function statusTone(status: string): 'neutral' | 'success' | 'warning' | 'info' {
-  if (status === 'PESANAN_SELESAI') return 'success';
-  if (status === 'DIKEMBALIKAN') return 'warning';
-  return 'info';
-}
+import { EmptyState } from '../../../ui/EmptyState';
+import { SkeletonList } from '../../../ui/Skeleton';
+import { StatusPill } from '../../../ui/StatusPill';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('id-ID', { dateStyle: 'medium' });
@@ -67,11 +55,7 @@ export function IncomingOrders() {
   }
 
   if (loading) {
-    return (
-      <Card>
-        <p className="text-sm text-slate-500">Memuat pesanan...</p>
-      </Card>
-    );
+    return <SkeletonList rows={3} />;
   }
 
   if (error) {
@@ -87,7 +71,10 @@ export function IncomingOrders() {
   if (orders.length === 0) {
     return (
       <Card>
-        <p className="text-sm text-slate-500">Belum ada pesanan masuk.</p>
+        <EmptyState
+          heading="Belum ada pesanan masuk"
+          teachLine="Pesanan dari pembeli untuk tokomu akan muncul di sini agar bisa segera diproses."
+        />
       </Card>
     );
   }
@@ -112,10 +99,8 @@ export function IncomingOrders() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-semibold text-slate-900">{formatRupiah(order.finalTotal)}</p>
-                  <Badge tone={statusTone(order.currentStatus)}>
-                    {STATUS_LABEL[order.currentStatus] ?? order.currentStatus}
-                  </Badge>
+                  <p className="tabular text-sm font-semibold text-slate-900">{formatRupiah(order.finalTotal)}</p>
+                  <StatusPill status={order.currentStatus} />
                 </div>
               </button>
               {order.currentStatus === 'SEDANG_DIKEMAS' && (

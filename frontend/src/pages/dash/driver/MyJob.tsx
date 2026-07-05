@@ -6,6 +6,7 @@ import { formatRupiah } from '../../../lib/format';
 import { Badge } from '../../../ui/Badge';
 import { Button } from '../../../ui/Button';
 import { Card } from '../../../ui/Card';
+import { EmptyState } from '../../../ui/EmptyState';
 import { Modal } from '../../../ui/Modal';
 
 function methodLabel(method: string): string {
@@ -66,7 +67,10 @@ export function MyJob() {
   if (!job) {
     return (
       <Card>
-        <p className="text-sm text-slate-500">Belum ada job aktif. Ambil job dari tab "Job Tersedia".</p>
+        <EmptyState
+          heading="Belum ada job aktif"
+          teachLine='Ambil job dari tab "Job Tersedia" untuk mulai mengantar pesanan.'
+        />
       </Card>
     );
   }
@@ -83,7 +87,7 @@ export function MyJob() {
             <span className="text-xs text-slate-500">{job.order.itemCount} item</span>
           </div>
         </div>
-        <p className="text-sm font-semibold text-slate-900">{formatRupiah(job.order.deliveryFee)}</p>
+        <p className="tabular text-sm font-semibold text-slate-900">{formatRupiah(job.order.deliveryFee)}</p>
       </div>
 
       <div className="mt-4 flex justify-end">
@@ -112,7 +116,7 @@ export function MyJob() {
             <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={completing}>
               Batal
             </Button>
-            <Button onClick={handleComplete} disabled={completing}>
+            <Button onClick={handleComplete} loading={completing}>
               {completing ? 'Menyelesaikan...' : 'Ya, Selesai'}
             </Button>
           </div>

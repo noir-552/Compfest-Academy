@@ -1,22 +1,8 @@
-// Shared status label/tone lookups for the admin dashboard's Overview, Orders,
-// Jobs, and Overdue pages — keeps the Indonesian labels and badge colors for
-// order/delivery-job statuses in one place.
-
-export const ORDER_STATUS_LABEL: Record<string, string> = {
-  SEDANG_DIKEMAS: 'Sedang Dikemas',
-  MENUNGGU_PENGIRIM: 'Menunggu Pengirim',
-  SEDANG_DIKIRIM: 'Sedang Dikirim',
-  PESANAN_SELESAI: 'Pesanan Selesai',
-  DIKEMBALIKAN: 'Dikembalikan',
-};
+// Shared status label/tone lookups for the admin dashboard's Jobs page —
+// order-lifecycle statuses now live in src/lib/orderStatus.ts + StatusPill
+// (the shared status system used across buyer/seller/admin surfaces).
 
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'info';
-
-export function orderStatusTone(status: string): BadgeTone {
-  if (status === 'PESANAN_SELESAI') return 'success';
-  if (status === 'DIKEMBALIKAN') return 'warning';
-  return 'info';
-}
 
 export const JOB_STATUS_LABEL: Record<string, string> = {
   AVAILABLE: 'Tersedia',
