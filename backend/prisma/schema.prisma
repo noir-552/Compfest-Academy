@@ -24,6 +24,7 @@ model User {
 
   createdVouchers Voucher[]
   createdPromos   Promo[]
+  deliveryJobs    DeliveryJob[]
 }
 
 model UserRole {
@@ -175,6 +176,7 @@ model Order {
   items              OrderItem[]
   statusHistory      OrderStatusHistory[]
   walletTransactions WalletTransaction[]
+  deliveryJob        DeliveryJob?
 }
 
 model Voucher {
@@ -225,4 +227,18 @@ model OrderStatusHistory {
   changedAt     DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model DeliveryJob {
+  id             String    @id @default(uuid())
+  orderId        String    @unique
+  driverUserId   String?
+  status         String    @default("AVAILABLE") // AVAILABLE|TAKEN|COMPLETED|CANCELLED
+  driverEarning  Int       @default(0)
+  takenAt        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver User? @relation(fields: [driverUserId], references: [id], onDelete: SetNull)
 }
