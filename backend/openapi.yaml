@@ -1,0 +1,1974 @@
+openapi: 3.0.3
+info:
+  title: SEAPEDIA API
+  description: >
+    Multi-role marketplace API (Guest, Buyer, Seller, Driver, Admin).
+    Authorization is enforced server-side against a session's **active role**,
+    not the full set of roles a user owns — see the `security` note on each
+    protected operation below. All error responses share one envelope:
+    `{ "error": { "code": "SOME_CODE", "message": "human readable" } }`.
+  version: "1.0.0"
+servers:
+  - url: /api
+tags:
+  - name: auth
+    description: Registration, login/logout, session, active-role selection.
+  - name: reviews
+    description: Public app reviews (not product reviews) — guest or logged-in.
+  - name: catalog
+    description: Public, unauthenticated product/store browsing.
+  - name: seller
+    description: Store + product management, incoming orders, seller report. Requires activeRole=SELLER.
+  - name: buyer
+    description: Wallet, addresses, cart, checkout, own orders, buyer report. Requires activeRole=BUYER.
+  - name: driver
+    description: Delivery job search/take/complete, earnings. Requires activeRole=DRIVER.
+  - name: admin
+    description: Vouchers/promos, monitoring, day simulation. Requires activeRole=ADMIN.
+  - name: discounts
+    description: Standalone discount-code validation (buyer-facing preview). Requires activeRole=BUYER.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Session token returned by POST /auth/login, sent as
+        `Authorization: Bearer <token>`. Sessions expire 7 days after login;
+        logout deletes the session row immediately (true invalidation, not a
+        client-side-only forget).
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+      required: [error]
+
+    RoleType:
+      type: string
+      enum: [ADMIN, SELLER, BUYER, DRIVER]
+
+    RegisterableRole:
+      type: string
+      enum: [SELLER, BUYER, DRIVER]
+      description: ADMIN cannot be self-registered; it is only provisioned via `npm run create-admin` or the seed script.
+
+    DeliveryMethod:
+      type: string
+      enum: [INSTANT, NEXT_DAY, REGULAR]
+      description: "Delivery fees: INSTANT 25000, NEXT_DAY 15000, REGULAR 10000. SLA (days to auto-return if overdue): INSTANT 1, NEXT_DAY 2, REGULAR 4."
+
+    DiscountType:
+      type: string
+      enum: [PERCENT, FIXED]
+
+    OrderStatus:
+      type: string
+      enum: [SEDANG_DIKEMAS, MENUNGGU_PENGIRIM, SEDANG_DIKIRIM, PESANAN_SELESAI, DIKEMBALIKAN]
+      description: >
+        Happy path: SEDANG_DIKEMAS -> MENUNGGU_PENGIRIM -> SEDANG_DIKIRIM ->
+        PESANAN_SELESAI. DIKEMBALIKAN is the terminal branch for orders the
+        overdue sweep force-returns after their SLA deadline passes.
+
+    DeliveryJobStatus:
+      type: string
+      enum: [AVAILABLE, TAKEN, COMPLETED, CANCELLED]
+
+    PublicUser:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PublicProduct:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        price: { type: integer }
+        stock: { type: integer }
+        isDeleted: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    PublicStore:
+      type: object
+      properties:
+        id: { type: string }
+        storeName: { type: string }
+        description: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    PublicAddress:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        recipientName: { type: string }
+        phone: { type: string }
+        fullAddress: { type: string }
+        isDefault: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    Wallet:
+      type: object
+      properties:
+        balance: { type: integer }
+
+    WalletTransaction:
+      type: object
+      properties:
+        id: { type: string }
+        orderId: { type: string, nullable: true }
+        type:
+          type: string
+          enum: [TOPUP, CHECKOUT_CHARGE, REFUND]
+        amount: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    CartSummary:
+      type: object
+      properties:
+        storeId: { type: string, nullable: true }
+        store:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            storeName: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product:
+                type: object
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+                  price: { type: integer }
+                  stock: { type: integer }
+              quantity: { type: integer }
+              lineTotal: { type: integer }
+        subtotal: { type: integer }
+
+    TotalsResult:
+      type: object
+      properties:
+        subtotal: { type: integer }
+        discountAmount:
+          type: integer
+          description: "min(voucherAmount + promoAmount, subtotal) — see the top-level discount-order rule."
+        deliveryFee: { type: integer }
+        ppnAmount:
+          type: integer
+          description: "floor(0.12 * (subtotal - discountAmount))"
+        finalTotal:
+          type: integer
+          description: "(subtotal - discountAmount) + ppnAmount + deliveryFee"
+
+    DiscountBreakdown:
+      type: object
+      description: >
+        Per-code amounts. NOTE the capped-discount edge case: when
+        voucher+promo together exceed subtotal, each amount is independently
+        capped (voucher at subtotal, promo at the voucher-reduced remainder),
+        so `voucher.amount + promo.amount` can be GREATER than the order's
+        actual `discountAmount` (which is separately capped at subtotal).
+        Don't assume the two breakdown lines sum to discountAmount.
+      properties:
+        voucher:
+          type: object
+          nullable: true
+          properties:
+            code: { type: string }
+            amount: { type: integer }
+        promo:
+          type: object
+          nullable: true
+          properties:
+            code: { type: string }
+            amount: { type: integer }
+
+    CheckoutPreview:
+      type: object
+      properties:
+        storeId: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId: { type: string }
+              productNameSnapshot: { type: string }
+              priceSnapshot: { type: integer }
+              quantity: { type: integer }
+              lineTotal: { type: integer }
+        totals: { $ref: '#/components/schemas/TotalsResult' }
+        discounts: { $ref: '#/components/schemas/DiscountBreakdown' }
+
+    OrderDetail:
+      type: object
+      properties:
+        id: { type: string }
+        storeId: { type: string }
+        addressId: { type: string }
+        voucherId: { type: string, nullable: true }
+        promoId: { type: string, nullable: true }
+        deliveryMethod: { $ref: '#/components/schemas/DeliveryMethod' }
+        subtotal: { type: integer }
+        discountAmount: { type: integer }
+        deliveryFee: { type: integer }
+        ppnAmount: { type: integer }
+        finalTotal: { type: integer }
+        currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+        slaDeadline: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        recipientNameSnapshot: { type: string }
+        phoneSnapshot: { type: string }
+        fullAddressSnapshot: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              productId: { type: string }
+              productNameSnapshot: { type: string }
+              priceSnapshot: { type: integer }
+              quantity: { type: integer }
+        statusHistory:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              status: { $ref: '#/components/schemas/OrderStatus' }
+              changedByRole: { type: string }
+              changedAt: { type: string, format: date-time }
+
+    Voucher:
+      type: object
+      properties:
+        id: { type: string }
+        createdByAdminId: { type: string }
+        code: { type: string }
+        discountType: { $ref: '#/components/schemas/DiscountType' }
+        discountValue: { type: integer }
+        usageLimit: { type: integer }
+        usageRemaining: { type: integer }
+        expiryDate: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    Promo:
+      type: object
+      properties:
+        id: { type: string }
+        createdByAdminId: { type: string }
+        code: { type: string }
+        discountType: { $ref: '#/components/schemas/DiscountType' }
+        discountValue: { type: integer }
+        expiryDate: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    DeliveryJob:
+      type: object
+      properties:
+        id: { type: string }
+        status: { $ref: '#/components/schemas/DeliveryJobStatus' }
+        driverEarning:
+          type: integer
+          description: "floor(0.8 * order.deliveryFee), set when the job completes."
+        takenAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        order:
+          type: object
+          properties:
+            id: { type: string }
+            storeName: { type: string }
+            deliveryMethod: { $ref: '#/components/schemas/DeliveryMethod' }
+            deliveryFee: { type: integer }
+            fullAddressSnapshot: { type: string }
+            recipientNameSnapshot: { type: string }
+            itemCount: { type: integer }
+
+    AppReview:
+      type: object
+      properties:
+        id: { type: string }
+        reviewerName: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string }
+        createdAt: { type: string, format: date-time }
+
+  responses:
+    Unauthenticated:
+      description: Missing/invalid/expired bearer token.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example: { error: { code: UNAUTHENTICATED, message: "Missing bearer token" } }
+    Forbidden:
+      description: Active role missing or not permitted for this action (RBAC — checked server-side against the session's activeRole, never the client-claimed route).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example: { error: { code: WRONG_ROLE, message: "Active role not permitted for this action" } }
+    ValidationError:
+      description: Request body failed Zod validation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example: { error: { code: VALIDATION_ERROR, message: "..." } }
+    NotFound:
+      description: Resource not found (or not owned by the caller — cross-user access collapses to 404, not 403, to avoid confirming existence).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+paths:
+  /health:
+    get:
+      tags: [auth]
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: { type: string, example: ok } }
+
+  /docs:
+    get:
+      tags: [auth]
+      summary: This Swagger UI page.
+      security: []
+      responses:
+        '200': { description: HTML documentation UI }
+
+  /openapi.json:
+    get:
+      tags: [auth]
+      summary: This spec, parsed to JSON.
+      security: []
+      responses:
+        '200': { description: OpenAPI 3.0 document as JSON }
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Register a new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, phone, password, roles]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_]+$' }
+                email: { type: string, format: email }
+                phone: { type: string, pattern: '^\d{8,15}$' }
+                password: { type: string, minLength: 8 }
+                roles:
+                  type: array
+                  items: { $ref: '#/components/schemas/RegisterableRole' }
+                  minItems: 1
+                  description: No duplicates allowed. ADMIN is not a valid value here.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/PublicUser' }
+                  roles:
+                    type: array
+                    items: { $ref: '#/components/schemas/RoleType' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409':
+          description: USERNAME_TAKEN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Log in and obtain a session bearer token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: >
+            Logged in. Session expires 7 days from now. `activeRole` is
+            auto-set only if the account owns exactly one role; multi-role
+            accounts get `activeRole: null` and must call POST
+            /auth/active-role before using any role-gated endpoint.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/PublicUser' }
+                  roles:
+                    type: array
+                    items: { $ref: '#/components/schemas/RoleType' }
+                  activeRole:
+                    type: string
+                    enum: [ADMIN, SELLER, BUYER, DRIVER]
+                    nullable: true
+        '401':
+          description: INVALID_CREDENTIALS
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '429':
+          description: TOO_MANY_ATTEMPTS — per-IP brute-force guard (10 failed attempts / 60s window).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Log out (deletes the session row — the token is dead immediately, not just forgotten client-side)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: OK }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Current session's user, owned roles, and active role
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/PublicUser' }
+                  roles:
+                    type: array
+                    items: { $ref: '#/components/schemas/RoleType' }
+                  activeRole:
+                    type: string
+                    enum: [ADMIN, SELLER, BUYER, DRIVER]
+                    nullable: true
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /auth/active-role:
+    post:
+      tags: [auth]
+      summary: Set the active role for this session
+      description: Fails with 403 ROLE_NOT_OWNED if the account does not own the requested role.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/RoleType' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { activeRole: { $ref: '#/components/schemas/RoleType' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: ROLE_NOT_OWNED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /reviews:
+    post:
+      tags: [reviews]
+      summary: Submit a public app review (guest or logged-in; not a product review)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reviewerName, rating, comment]
+              properties:
+                reviewerName: { type: string, minLength: 1, maxLength: 50 }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: string, minLength: 1, maxLength: 1000 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { review: { $ref: '#/components/schemas/AppReview' } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    get:
+      tags: [reviews]
+      summary: List all public app reviews, newest first
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reviews:
+                    type: array
+                    items: { $ref: '#/components/schemas/AppReview' }
+
+  /products:
+    get:
+      tags: [catalog]
+      summary: Public product listing (guest-accessible)
+      security: []
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Case-insensitive substring match on product name.
+        - name: storeId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items: { $ref: '#/components/schemas/PublicProduct' }
+
+  /products/{id}:
+    get:
+      tags: [catalog]
+      summary: Public product detail
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { product: { $ref: '#/components/schemas/PublicProduct' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /stores/{id}:
+    get:
+      tags: [catalog]
+      summary: Public store detail with its live product list
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { store: { $ref: '#/components/schemas/PublicStore' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /seller/store:
+    get:
+      tags: [seller]
+      summary: Get the caller's own store
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=SELLER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { store: { $ref: '#/components/schemas/PublicStore' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: STORE_NOT_FOUND — seller has not created a store yet.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    post:
+      tags: [seller]
+      summary: Create the caller's store (one per seller; storeName is globally unique)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=SELLER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeName]
+              properties:
+                storeName: { type: string, minLength: 3, maxLength: 50 }
+                description: { type: string, maxLength: 2000 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { store: { $ref: '#/components/schemas/PublicStore' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: STORE_ALREADY_EXISTS or STORE_NAME_TAKEN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    put:
+      tags: [seller]
+      summary: Update the caller's store
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=SELLER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeName]
+              properties:
+                storeName: { type: string, minLength: 3, maxLength: 50 }
+                description: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { store: { $ref: '#/components/schemas/PublicStore' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: STORE_NAME_TAKEN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /seller/products:
+    get:
+      tags: [seller]
+      summary: List the caller's own (non-deleted) products
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=SELLER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items: { $ref: '#/components/schemas/PublicProduct' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [seller]
+      summary: Create a product under the caller's store
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=SELLER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, price, stock]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                description: { type: string, maxLength: 2000 }
+                price: { type: integer, minimum: 0 }
+                stock: { type: integer, minimum: 0 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { product: { $ref: '#/components/schemas/PublicProduct' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: STORE_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /seller/products/{id}:
+    put:
+      tags: [seller]
+      summary: Update a product owned by the caller's store
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=SELLER.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, price, stock]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                description: { type: string, maxLength: 2000 }
+                price: { type: integer, minimum: 0 }
+                stock: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { product: { $ref: '#/components/schemas/PublicProduct' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: WRONG_ROLE, or NOT_OWNER if the product belongs to a different seller's store.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [seller]
+      summary: Soft-delete a product owned by the caller's store
+      description: >
+        Sets isDeleted=true (terminal — a soft-deleted product 404s on any
+        further update/delete). Requires activeRole=SELLER.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: OK }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: WRONG_ROLE, or NOT_OWNER if the product belongs to a different seller's store.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /seller/orders:
+    get:
+      tags: [seller]
+      summary: List orders placed against the caller's store
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=SELLER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrderDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /seller/orders/{id}/process:
+    post:
+      tags: [seller]
+      summary: Advance an order SEDANG_DIKEMAS -> MENUNGGU_PENGIRIM
+      description: >
+        Also creates the AVAILABLE delivery job atomically. Race-safe:
+        concurrent calls can only succeed once. Requires activeRole=SELLER.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { order: { $ref: '#/components/schemas/OrderDetail' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: ORDER_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: "INVALID_STATUS — order.currentStatus is not SEDANG_DIKEMAS."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /seller/report:
+    get:
+      tags: [seller]
+      summary: Seller income report
+      description: >
+        income = sum(finalTotal - ppnAmount - deliveryFee) over non-refunded
+        orders. Recognized at checkout, reversed automatically when an order
+        is refunded (isRefunded flips to true). Requires activeRole=SELLER.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  income: { type: integer }
+                  orderCount: { type: integer }
+                  byStatus:
+                    type: object
+                    additionalProperties: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /buyer/wallet:
+    get:
+      tags: [buyer]
+      summary: Get the caller's wallet balance + transaction history
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER. Auto-creates a zero-balance wallet on first access.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wallet: { $ref: '#/components/schemas/Wallet' }
+                  transactions:
+                    type: array
+                    items: { $ref: '#/components/schemas/WalletTransaction' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /buyer/wallet/topup:
+    post:
+      tags: [buyer]
+      summary: Dummy top-up (no real payment gateway)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: integer, minimum: 1, maximum: 100000000 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wallet: { $ref: '#/components/schemas/Wallet' }
+                  transactions:
+                    type: array
+                    items: { $ref: '#/components/schemas/WalletTransaction' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /buyer/addresses:
+    get:
+      tags: [buyer]
+      summary: List the caller's own addresses
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  addresses:
+                    type: array
+                    items: { $ref: '#/components/schemas/PublicAddress' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [buyer]
+      summary: Create an address
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER. Setting isDefault=true unsets any other default address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, recipientName, phone, fullAddress]
+              properties:
+                label: { type: string, minLength: 1, maxLength: 50 }
+                recipientName: { type: string, minLength: 1, maxLength: 100 }
+                phone: { type: string, pattern: '^\d{8,15}$' }
+                fullAddress: { type: string, minLength: 1, maxLength: 500 }
+                isDefault: { type: boolean }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { address: { $ref: '#/components/schemas/PublicAddress' } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /buyer/addresses/{id}:
+    put:
+      tags: [buyer]
+      summary: Update an address owned by the caller
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string, minLength: 1, maxLength: 50 }
+                recipientName: { type: string, minLength: 1, maxLength: 100 }
+                phone: { type: string, pattern: '^\d{8,15}$' }
+                fullAddress: { type: string, minLength: 1, maxLength: 500 }
+                isDefault: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { address: { $ref: '#/components/schemas/PublicAddress' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: ADDRESS_NOT_FOUND (also returned for another buyer's address — no cross-user disclosure)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    delete:
+      tags: [buyer]
+      summary: Delete an address owned by the caller
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: OK }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: ADDRESS_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /buyer/cart:
+    get:
+      tags: [buyer]
+      summary: Get the caller's cart (soft-deleted products auto-pruned)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { cart: { $ref: '#/components/schemas/CartSummary' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [buyer]
+      summary: Clear the cart entirely (resets storeId to null)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { cart: { $ref: '#/components/schemas/CartSummary' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /buyer/cart/items:
+    post:
+      tags: [buyer]
+      summary: Add an item to the cart
+      description: >
+        Enforces the **single-store cart rule**: a cart with existing items
+        can only accept more items from the same store; adding a different
+        store's product 409s with CART_STORE_CONFLICT (the buyer must clear
+        the cart first). Requires activeRole=BUYER.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, quantity]
+              properties:
+                productId: { type: string }
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { cart: { $ref: '#/components/schemas/CartSummary' } }
+        '400':
+          description: INSUFFICIENT_STOCK or VALIDATION_ERROR
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: CART_STORE_CONFLICT
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /buyer/cart/items/{productId}:
+    put:
+      tags: [buyer]
+      summary: Update an item's quantity
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { cart: { $ref: '#/components/schemas/CartSummary' } }
+        '400':
+          description: INSUFFICIENT_STOCK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: CART_ITEM_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    delete:
+      tags: [buyer]
+      summary: Remove an item from the cart
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { cart: { $ref: '#/components/schemas/CartSummary' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: CART_ITEM_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /buyer/checkout/preview:
+    post:
+      tags: [buyer]
+      summary: Preview totals for the current cart without committing
+      description: >
+        Same input/discount rules as POST /buyer/checkout, but read-only —
+        safe to call repeatedly while the buyer picks a delivery method or
+        types a discount code. Requires activeRole=BUYER.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [addressId, deliveryMethod]
+              properties:
+                addressId: { type: string }
+                deliveryMethod: { $ref: '#/components/schemas/DeliveryMethod' }
+                voucherCode: { type: string }
+                promoCode: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckoutPreview' }
+        '400':
+          description: CART_EMPTY or VALIDATION_ERROR
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: ADDRESS_NOT_FOUND or DISCOUNT_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: DISCOUNT_EXPIRED or DISCOUNT_EXHAUSTED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /buyer/checkout:
+    post:
+      tags: [buyer]
+      summary: Commit checkout — creates the order, debits wallet, decrements stock, clears cart
+      description: >
+        All-or-nothing in a single DB transaction: any failure (insufficient
+        stock, insufficient wallet balance, exhausted discount) rolls back
+        every write. See the top-level money-math rules for how totals are
+        computed. Requires activeRole=BUYER.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [addressId, deliveryMethod]
+              properties:
+                addressId: { type: string }
+                deliveryMethod: { $ref: '#/components/schemas/DeliveryMethod' }
+                voucherCode: { type: string }
+                promoCode: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { order: { $ref: '#/components/schemas/OrderDetail' } }
+        '400':
+          description: CART_EMPTY or VALIDATION_ERROR
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: ADDRESS_NOT_FOUND or DISCOUNT_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: INSUFFICIENT_STOCK, INSUFFICIENT_BALANCE, DISCOUNT_EXHAUSTED, or DISCOUNT_EXPIRED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /buyer/orders:
+    get:
+      tags: [buyer]
+      summary: List the caller's own orders
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrderDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /buyer/orders/{id}:
+    get:
+      tags: [buyer]
+      summary: Get one of the caller's own orders in detail
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=BUYER.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { order: { $ref: '#/components/schemas/OrderDetail' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: ORDER_NOT_FOUND (also returned for another buyer's order)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /buyer/report:
+    get:
+      tags: [buyer]
+      summary: Buyer spend report
+      description: >
+        totalSpent excludes refunded orders (the money already came back to
+        the wallet); orderCount/byStatus cover every order regardless of
+        refund state. Requires activeRole=BUYER.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalSpent: { type: integer }
+                  orderCount: { type: integer }
+                  byStatus:
+                    type: object
+                    additionalProperties: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /discounts/validate:
+    post:
+      tags: [discounts]
+      summary: Validate a voucher or promo code against a subtotal (preview only, no mutation)
+      description: >
+        Looks up vouchers first, then promos, by exact code match. Requires
+        activeRole=BUYER.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, subtotal]
+              properties:
+                code: { type: string }
+                subtotal: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  kind: { type: string, enum: [VOUCHER, PROMO] }
+                  code: { type: string }
+                  discountType: { $ref: '#/components/schemas/DiscountType' }
+                  discountValue: { type: integer }
+                  amount: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: DISCOUNT_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: DISCOUNT_EXPIRED or DISCOUNT_EXHAUSTED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /driver/jobs/available:
+    get:
+      tags: [driver]
+      summary: List delivery jobs available to take (status=AVAILABLE only)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=DRIVER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items: { $ref: '#/components/schemas/DeliveryJob' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /driver/jobs/mine:
+    get:
+      tags: [driver]
+      summary: The caller's active job (if any) and completed-job history
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=DRIVER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active:
+                    type: object
+                    nullable: true
+                    allOf: [{ $ref: '#/components/schemas/DeliveryJob' }]
+                  history:
+                    type: array
+                    items: { $ref: '#/components/schemas/DeliveryJob' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /driver/jobs/{id}:
+    get:
+      tags: [driver]
+      summary: Get a job's detail
+      description: >
+        Visible if it's AVAILABLE, or if the caller is the assigned driver
+        (any status) — otherwise 404 JOB_NOT_FOUND, even if the job exists,
+        so a driver cannot probe other drivers' job IDs. Requires
+        activeRole=DRIVER.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { job: { $ref: '#/components/schemas/DeliveryJob' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: JOB_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /driver/jobs/{id}/take:
+    post:
+      tags: [driver]
+      summary: Take an available job (order flips MENUNGGU_PENGIRIM -> SEDANG_DIKIRIM)
+      description: >
+        Race-safe: two drivers racing on the same job can never both win —
+        the loser gets 409 JOB_ALREADY_TAKEN. A driver cannot take their own
+        order (403 SELF_DELIVERY_FORBIDDEN), and cannot hold two active jobs
+        at once (409 DRIVER_BUSY — must complete the current job first).
+        Requires activeRole=DRIVER.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { job: { $ref: '#/components/schemas/DeliveryJob' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: WRONG_ROLE or SELF_DELIVERY_FORBIDDEN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '404':
+          description: JOB_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: JOB_ALREADY_TAKEN, DRIVER_BUSY, or INVALID_STATUS
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /driver/jobs/{id}/complete:
+    post:
+      tags: [driver]
+      summary: Mark a taken job completed (order flips SEDANG_DIKIRIM -> PESANAN_SELESAI)
+      description: >
+        Sets driverEarning = floor(0.8 * order.deliveryFee). Only the
+        assigned driver may complete it (403 NOT_YOUR_JOB otherwise).
+        Requires activeRole=DRIVER.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { job: { $ref: '#/components/schemas/DeliveryJob' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: WRONG_ROLE or NOT_YOUR_JOB
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '404':
+          description: JOB_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '409':
+          description: "INVALID_STATUS — job is not TAKEN."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /driver/earnings:
+    get:
+      tags: [driver]
+      summary: Total + per-job earnings from completed jobs
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=DRIVER.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalEarnings: { type: integer }
+                  completedCount: { type: integer }
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        orderId: { type: string }
+                        driverEarning: { type: integer }
+                        completedAt: { type: string, format: date-time, nullable: true }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/vouchers:
+    post:
+      tags: [admin]
+      summary: Create a voucher (percentage or fixed, with usage quota + expiry)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, discountType, discountValue, usageLimit, expiryDate]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9]{4,20}$' }
+                discountType: { $ref: '#/components/schemas/DiscountType' }
+                discountValue:
+                  type: integer
+                  description: 1-100 if discountType=PERCENT, >=1 if FIXED.
+                usageLimit: { type: integer, minimum: 1 }
+                expiryDate: { type: string, format: date-time, description: Must be in the future. }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { voucher: { $ref: '#/components/schemas/Voucher' } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: DISCOUNT_CODE_TAKEN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    get:
+      tags: [admin]
+      summary: List all vouchers
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vouchers:
+                    type: array
+                    items: { $ref: '#/components/schemas/Voucher' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/vouchers/{id}:
+    get:
+      tags: [admin]
+      summary: Get one voucher
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { voucher: { $ref: '#/components/schemas/Voucher' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: VOUCHER_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /admin/promos:
+    post:
+      tags: [admin]
+      summary: Create a promo (percentage or fixed, with expiry, no usage quota)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, discountType, discountValue, expiryDate]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9]{4,20}$' }
+                discountType: { $ref: '#/components/schemas/DiscountType' }
+                discountValue:
+                  type: integer
+                  description: 1-100 if discountType=PERCENT, >=1 if FIXED.
+                expiryDate: { type: string, format: date-time, description: Must be in the future. }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { promo: { $ref: '#/components/schemas/Promo' } }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: DISCOUNT_CODE_TAKEN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    get:
+      tags: [admin]
+      summary: List all promos
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  promos:
+                    type: array
+                    items: { $ref: '#/components/schemas/Promo' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/promos/{id}:
+    get:
+      tags: [admin]
+      summary: Get one promo
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { promo: { $ref: '#/components/schemas/Promo' } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PROMO_NOT_FOUND
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /admin/simulate-next-day:
+    post:
+      tags: [admin]
+      summary: Advance the virtual clock by one day and run the overdue sweep
+      description: >
+        The only way orders become overdue in this system — there is no
+        real-time cron. Advances AppState.dayOffset, then finds every order
+        whose slaDeadline has passed and isn't in a final status, force-flips
+        it to DIKEMBALIKAN, refunds finalTotal to the buyer's wallet,
+        restores product stock, restores voucher quota (if a voucher was
+        used), and cancels any AVAILABLE/TAKEN delivery job — each guarded by
+        its own idempotency flag (isRefunded/isStockRestored/
+        isVoucherRestored) so repeated sweeps never double-apply. Requires
+        activeRole=ADMIN.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  virtualDate: { type: string, format: date-time }
+                  processed:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        orderId: { type: string }
+                        actions:
+                          type: array
+                          items: { type: string }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/overdue:
+    get:
+      tags: [admin]
+      summary: Orders past SLA deadline (pending sweep) and already-returned orders
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        storeId: { type: string }
+                        storeName: { type: string }
+                        buyerUsername: { type: string }
+                        currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+                        finalTotal: { type: integer }
+                        slaDeadline: { type: string, format: date-time }
+                        createdAt: { type: string, format: date-time }
+                  returned:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        storeId: { type: string }
+                        storeName: { type: string }
+                        buyerUsername: { type: string }
+                        currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+                        finalTotal: { type: integer }
+                        slaDeadline: { type: string, format: date-time }
+                        createdAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/overview:
+    get:
+      tags: [admin]
+      summary: Top-line dashboard counts (users/stores/products/orders/vouchers/promos/jobs/overdue)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  virtualDate: { type: string, format: date-time }
+                  counts:
+                    type: object
+                    properties:
+                      users: { type: integer }
+                      stores: { type: integer }
+                      products: { type: integer }
+                      ordersByStatus:
+                        type: object
+                        additionalProperties: { type: integer }
+                      vouchers: { type: integer }
+                      promos: { type: integer }
+                      jobsByStatus:
+                        type: object
+                        additionalProperties: { type: integer }
+                      overduePending: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/users:
+    get:
+      tags: [admin]
+      summary: List all users with their roles (passwordHash never exposed)
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        username: { type: string }
+                        email: { type: string }
+                        phone: { type: string }
+                        roles:
+                          type: array
+                          items: { type: string }
+                        createdAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/stores:
+    get:
+      tags: [admin]
+      summary: List all stores with seller username and product count
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stores:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        storeName: { type: string }
+                        description: { type: string, nullable: true }
+                        sellerUsername: { type: string }
+                        productCount: { type: integer }
+                        createdAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/products:
+    get:
+      tags: [admin]
+      summary: List all products (including soft-deleted) with their store name
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        price: { type: integer }
+                        stock: { type: integer }
+                        isDeleted: { type: boolean }
+                        storeName: { type: string }
+                        createdAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/orders:
+    get:
+      tags: [admin]
+      summary: List all orders with buyer/store identifiers
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        buyerUsername: { type: string }
+                        storeName: { type: string }
+                        currentStatus: { $ref: '#/components/schemas/OrderStatus' }
+                        finalTotal: { type: integer }
+                        createdAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/delivery-jobs:
+    get:
+      tags: [admin]
+      summary: List all delivery jobs with assigned driver username
+      security: [{ bearerAuth: [] }]
+      description: Requires activeRole=ADMIN.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        orderId: { type: string }
+                        driverUsername: { type: string, nullable: true }
+                        status: { $ref: '#/components/schemas/DeliveryJobStatus' }
+                        driverEarning: { type: integer }
+                        createdAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+security:
+  - bearerAuth: []

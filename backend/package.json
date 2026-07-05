@@ -7,7 +7,8 @@
     "test": "vitest run",
     "build": "tsc",
     "db:migrate": "prisma migrate deploy",
-    "create-admin": "tsx src/seed/admin.ts"
+    "create-admin": "tsx src/seed/admin.ts",
+    "seed": "tsx src/seed/seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +21,8 @@
     "better-sqlite3": "^12.11.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "swagger-ui-express": "^5.0.1",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -27,6 +30,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.0",
     "@types/supertest": "^7.2.0",
+    "@types/swagger-ui-express": "^4.1.8",
     "prisma": "^7.8.0",
     "supertest": "^7.2.2",
     "tsx": "^4.23.0",
