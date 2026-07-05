@@ -1,5 +1,16 @@
 import http from 'node:http';
 import { createRequire } from 'node:module';
+import { beforeEach } from 'vitest';
+import { _resetLoginRateLimiterForTests } from '../src/middleware/rate-limit';
+
+// The login rate limiter's failure counts live in a module-level Map that
+// persists for the whole test process. Every test file drives many failed
+// logins (wrong-password cases), so without a global reset a later file could
+// inherit another's accumulated failures and get a 429 where it expects 401.
+// Reset before every test so rate-limit state never bleeds across files/cases.
+beforeEach(() => {
+  _resetLoginRateLimiterForTests();
+});
 
 // Two independent sources of cross-test HTTP flakiness, both rooted in
 // supertest booting an ephemeral server per request:

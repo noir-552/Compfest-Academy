@@ -4,6 +4,7 @@ import * as authService from '../services/auth.service';
 import { ApiError } from '../lib/api-error';
 import { ALL_ROLES, REGISTERABLE_ROLES } from '../lib/roles';
 import { extractBearerToken } from '../middleware/auth';
+import { assertLoginNotRateLimited, recordLoginFailure, recordLoginSuccess } from '../middleware/rate-limit';
 
 const registerSchema = z.object({
   username: z
@@ -39,8 +40,17 @@ export async function registerHandler(req: Request, res: Response): Promise<void
 
 export async function loginHandler(req: Request, res: Response): Promise<void> {
   const input = loginSchema.parse(req.body);
-  const result = await authService.login(input.username, input.password);
-  res.status(200).json(result);
+  assertLoginNotRateLimited(req);
+  try {
+    const result = await authService.login(input.username, input.password);
+    recordLoginSuccess(req);
+    res.status(200).json(result);
+  } catch (err) {
+    if (err instanceof ApiError && err.code === 'INVALID_CREDENTIALS') {
+      recordLoginFailure(req);
+    }
+    throw err;
+  }
 }
 
 export async function logoutHandler(req: Request, res: Response): Promise<void> {
