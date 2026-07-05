@@ -4,6 +4,7 @@ import { SLA_DAYS } from '../lib/money';
 import type { DeliveryMethod } from '../lib/money';
 import { now } from '../lib/clock';
 import { getOwnStoreOrThrow } from './store.service';
+import { createDeliveryJobForOrder } from './delivery.service';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -236,6 +237,8 @@ export async function processOrder(sellerUserId: string, orderId: string): Promi
     await tx.orderStatusHistory.create({
       data: { orderId, status: 'MENUNGGU_PENGIRIM', changedByRole: 'SELLER' },
     });
+
+    await createDeliveryJobForOrder(tx, orderId);
 
     const order = await tx.order.findUniqueOrThrow({
       where: { id: orderId },

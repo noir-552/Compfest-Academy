@@ -8,6 +8,7 @@ import buyerRoutes from './routes/buyer.routes';
 import catalogRoutes from './routes/catalog.routes';
 import adminRoutes from './routes/admin.routes';
 import discountRoutes from './routes/discount.routes';
+import driverRoutes from './routes/driver.routes';
 
 export function createApp(): Express {
   const app = express();
@@ -24,6 +25,7 @@ export function createApp(): Express {
   app.use('/api/buyer', buyerRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/discounts', discountRoutes);
+  app.use('/api/driver', driverRoutes);
   app.use('/api', catalogRoutes);
 
   app.use('/api', (_req, _res, next) => {
