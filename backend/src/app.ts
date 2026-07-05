@@ -13,7 +13,12 @@ import driverRoutes from './routes/driver.routes';
 export function createApp(): Express {
   const app = express();
 
-  app.use(express.json());
+  // Body-size cap: rejects oversized request bodies (413) before they reach
+  // JSON parsing/Zod validation — a cheap guard against memory-exhaustion
+  // payloads. 100kb comfortably covers every real request shape in this API
+  // (the largest inputs are review comments/product descriptions, capped
+  // well under 2kb by their own Zod schemas).
+  app.use(express.json({ limit: '100kb' }));
 
   app.get('/api/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
