@@ -42,6 +42,7 @@ const PRODUCT = {
   name: 'Ikan Tuna Segar',
   price: 50000,
   stock: 10,
+  imageUrl: null,
   description: 'Tuna segar hasil tangkapan hari ini.',
   store: { id: 'store-1', storeName: 'Toko Laut Biru', description: null },
 };

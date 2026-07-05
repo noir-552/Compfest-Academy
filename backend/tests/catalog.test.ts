@@ -10,7 +10,13 @@ const validStore = {
   description: 'Jual barang bagus',
 };
 
-const validProduct = {
+const validProduct: {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  imageUrl?: string | null;
+} = {
   name: 'Kopi Susu',
   description: 'Kopi susu gula aren',
   price: 15000,
@@ -62,6 +68,16 @@ describe('GET /api/products', () => {
       store: { storeName: 'Toko Budi' },
     });
     expect(res.body.products[0].store.id).toBeTypeOf('string');
+    expect(res.body.products[0].imageUrl).toBeNull();
+  });
+
+  it('includes a non-null imageUrl for a product that has one', async () => {
+    await createStoreAndProduct('catalog_guest_image', {}, { imageUrl: '/product-images/kopi-susu-gula-aren.jpg' });
+
+    const res = await request(app).get('/api/products');
+
+    expect(res.status).toBe(200);
+    expect(res.body.products[0].imageUrl).toBe('/product-images/kopi-susu-gula-aren.jpg');
   });
 
   it('filters products by case-insensitive search on name', async () => {
@@ -107,7 +123,7 @@ describe('GET /api/products', () => {
 
 describe('GET /api/products/:id', () => {
   it('returns full product detail including store description for a guest', async () => {
-    const { productId } = await createStoreAndProduct('catalog_detail');
+    const { productId } = await createStoreAndProduct('catalog_detail', {}, { imageUrl: '/product-images/kopi-susu-gula-aren.jpg' });
 
     const res = await request(app).get(`/api/products/${productId}`);
 
@@ -117,6 +133,7 @@ describe('GET /api/products/:id', () => {
       description: 'Kopi susu gula aren',
       price: 15000,
       stock: 10,
+      imageUrl: '/product-images/kopi-susu-gula-aren.jpg',
       store: { storeName: 'Toko Budi', description: 'Jual barang bagus' },
     });
   });
@@ -162,6 +179,7 @@ describe('GET /api/stores/:id', () => {
     expect(res.body.store.products).toHaveLength(2);
     const names = res.body.store.products.map((p: { name: string }) => p.name).sort();
     expect(names).toEqual(['Kopi Susu', 'Teh Tarik']);
+    expect(res.body.store.products[0]).toHaveProperty('imageUrl');
   });
 
   it('returns 404 STORE_NOT_FOUND for an unknown store id', async () => {

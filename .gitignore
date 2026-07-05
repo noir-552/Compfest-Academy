@@ -39,6 +39,9 @@ frontend/node_modules/.vite/
 *.sqlite
 *.sqlite3
 
+# Uploaded product photos (persisted via UPLOADS_DIR / the backend-data volume, not the repo)
+uploads/
+
 # Agent/tool state
 .superpowers/
 .gstack/

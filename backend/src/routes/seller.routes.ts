@@ -9,6 +9,7 @@ import {
 } from '../controllers/product.controller';
 import { listIncomingOrdersHandler, processOrderHandler } from '../controllers/order.controller';
 import { getSellerReportHandler } from '../controllers/report.controller';
+import { uploadMiddleware, uploadProductImageHandler } from '../controllers/upload.controller';
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.get('/products', listProductsHandler);
 router.post('/products', createProductHandler);
 router.put('/products/:id', updateProductHandler);
 router.delete('/products/:id', deleteProductHandler);
+router.post('/products/upload-image', uploadMiddleware, uploadProductImageHandler);
 
 router.get('/orders', listIncomingOrdersHandler);
 router.post('/orders/:id/process', processOrderHandler);

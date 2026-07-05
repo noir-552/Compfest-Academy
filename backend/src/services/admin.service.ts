@@ -146,6 +146,7 @@ export interface AdminProductView {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
   isDeleted: boolean;
   storeName: string;
   createdAt: Date;
@@ -162,6 +163,7 @@ export async function listProducts(): Promise<AdminProductView[]> {
     name: product.name,
     price: product.price,
     stock: product.stock,
+    imageUrl: product.imageUrl,
     isDeleted: product.isDeleted,
     storeName: product.store.storeName,
     createdAt: product.createdAt,

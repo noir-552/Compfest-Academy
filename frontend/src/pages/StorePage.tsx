@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { getStore, type PublicStoreDetail } from '../api/catalog';
+import { ProductImage } from '../components/ProductImage';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
 
@@ -59,7 +60,11 @@ export function StorePage() {
           {store.products.map((product) => (
             <Link key={product.id} to={`/product/${product.id}`}>
               <Card className="h-full">
-                <div className="mb-3 aspect-square w-full rounded-lg bg-slate-100" />
+                <ProductImage
+                  imageUrl={product.imageUrl}
+                  name={product.name}
+                  className="mb-3 aspect-square w-full rounded-lg"
+                />
                 <h3 className="text-sm font-semibold text-slate-900">{product.name}</h3>
                 <p className="mt-1 text-sm font-bold text-slate-900">Rp {product.price.toLocaleString('id-ID')}</p>
               </Card>

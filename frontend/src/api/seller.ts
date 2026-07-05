@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, apiUpload } from './client';
 import type { OrderDetail } from './buyer';
 
 // Authenticated seller-only reads/writes. Mirrors
@@ -17,6 +17,7 @@ export interface SellerProduct {
   description: string | null;
   price: number;
   stock: number;
+  imageUrl: string | null;
   isDeleted: boolean;
   createdAt: string;
 }
@@ -31,6 +32,7 @@ export interface ProductInput {
   description?: string;
   price: number;
   stock: number;
+  imageUrl?: string | null;
 }
 
 export function getOwnStore(): Promise<{ store: SellerStore }> {
@@ -71,6 +73,16 @@ export function updateProduct(id: string, input: ProductInput): Promise<{ produc
 
 export function deleteProduct(id: string): Promise<Record<string, never>> {
   return apiFetch<Record<string, never>>(`/seller/products/${id}`, { method: 'DELETE' });
+}
+
+/**
+ * Uploads a product photo file (JPEG/PNG/WebP, 2MB max — enforced by the
+ * backend) and returns the same-origin URL to fill into ProductInput.imageUrl.
+ */
+export function uploadProductImage(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('image', file);
+  return apiUpload<{ url: string }>('/seller/products/upload-image', formData);
 }
 
 // ---------------------------------------------------------------------------

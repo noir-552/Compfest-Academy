@@ -100,6 +100,10 @@ components:
         description: { type: string, nullable: true }
         price: { type: integer }
         stock: { type: integer }
+        imageUrl:
+          type: string
+          nullable: true
+          description: "Product photo URL — absolute (https://) or a same-origin path (/product-images/...)."
         isDeleted: { type: boolean }
         createdAt: { type: string, format: date-time }
 
@@ -160,6 +164,7 @@ components:
                   name: { type: string }
                   price: { type: integer }
                   stock: { type: integer }
+                  imageUrl: { type: string, nullable: true }
               quantity: { type: integer }
               lineTotal: { type: integer }
         subtotal: { type: integer }
@@ -739,6 +744,11 @@ paths:
                 description: { type: string, maxLength: 2000 }
                 price: { type: integer, minimum: 0 }
                 stock: { type: integer, minimum: 0 }
+                imageUrl:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+                  description: "Must start with https://, http://, or /. Omit or set to null to leave/clear it."
       responses:
         '201':
           description: Created
@@ -754,6 +764,71 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /seller/products/upload-image:
+    post:
+      tags: [seller]
+      summary: Upload a product photo file
+      description: >
+        Requires activeRole=SELLER. Accepts a single multipart field named
+        `image` (JPEG/PNG/WebP, 2MB max). The server sniffs the file's actual
+        magic bytes rather than trusting the client-declared mimetype or
+        filename, saves it under a random UUID name, and returns a same-origin
+        URL suitable for the `imageUrl` field on
+        `POST /seller/products` / `PUT /seller/products/{id}`. The file is
+        then servable at `GET /uploads/{file}` (see note on that path below).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    description: "Same-origin URL, e.g. /api/uploads/<uuid>.png"
+        '400':
+          description: IMAGE_REQUIRED (no file attached), or INVALID_IMAGE (mimetype/magic-byte mismatch).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413':
+          description: IMAGE_TOO_LARGE — file exceeds the 2MB limit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /uploads/{file}:
+    get:
+      tags: [seller]
+      summary: Serve an uploaded product photo file (static, unauthenticated)
+      description: >
+        Served via express.static from UPLOADS_DIR — not documented as a
+        Prisma-backed resource. Response is the raw image bytes with a
+        content-type inferred from the file extension and a 7-day cache
+        header (filenames are random UUIDs, so they're immutable once
+        created). An unknown filename 404s with the standard error envelope.
+      parameters:
+        - { name: file, in: path, required: true, schema: { type: string }, description: "e.g. 3fa2c1a0-....png" }
+      responses:
+        '200':
+          description: OK — raw image bytes.
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /seller/products/{id}:
     put:
@@ -775,6 +850,11 @@ paths:
                 description: { type: string, maxLength: 2000 }
                 price: { type: integer, minimum: 0 }
                 stock: { type: integer, minimum: 0 }
+                imageUrl:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+                  description: "Must start with https://, http://, or /. Set to null to clear it."
       responses:
         '200':
           description: OK
@@ -1908,6 +1988,7 @@ paths:
                         name: { type: string }
                         price: { type: integer }
                         stock: { type: integer }
+                        imageUrl: { type: string, nullable: true }
                         isDeleted: { type: boolean }
                         storeName: { type: string }
                         createdAt: { type: string, format: date-time }

@@ -8,7 +8,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export interface LiveCartItem {
   id: string;
   quantity: number;
-  product: { id: string; name: string; price: number; stock: number; isDeleted: boolean };
+  product: { id: string; name: string; price: number; stock: number; imageUrl: string | null; isDeleted: boolean };
 }
 
 export interface PrunedCart {
@@ -22,6 +22,7 @@ export interface CartItemSummary {
     name: string;
     price: number;
     stock: number;
+    imageUrl: string | null;
   };
   quantity: number;
   lineTotal: number;
@@ -103,6 +104,7 @@ async function summarizeCart(cartId: string, storeId: string | null): Promise<Ca
       name: item.product.name,
       price: item.product.price,
       stock: item.product.stock,
+      imageUrl: item.product.imageUrl,
     },
     quantity: item.quantity,
     lineTotal: item.product.price * item.quantity,
