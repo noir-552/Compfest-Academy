@@ -99,6 +99,7 @@ Prerequisite: **Node.js ≥ 20**.
 ```bash
 cd backend
 npm install
+npx prisma generate # creates node_modules/.prisma/client after install
 npm run db:migrate   # applies all migrations — see note below
 npm run seed          # creates demo accounts, stores, products, discounts
 npm run dev            # starts the API on http://localhost:3001
