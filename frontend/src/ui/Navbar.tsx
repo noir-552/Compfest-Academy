@@ -3,12 +3,36 @@ import { Link, NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
 import type { RoleType } from '../api/auth';
-import { Badge } from './Badge';
 import { Button } from './Button';
-import { DASHBOARD_PATH, ROLE_LABEL } from '../constants/roles';
+import { DASHBOARD_PATH, ROLE_LABEL, ROLE_CHIP_CLASS } from '../constants/roles';
 
 function navLinkClass({ isActive }: { isActive: boolean }): string {
-  return `text-sm font-medium ${isActive ? 'text-teal-700' : 'text-slate-600 hover:text-teal-700'}`;
+  return `text-sm font-medium transition-colors duration-150 ${
+    isActive ? 'text-teal-700' : 'text-slate-600 hover:text-teal-700'
+  }`;
+}
+
+function LogoMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6 text-teal-600" fill="none" aria-hidden="true">
+      <path
+        d="M3 16c2.5 2 5.5 2 8 0s5.5-2 8 0"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 11c2.5 2 5.5 2 8 0s5.5-2 8 0"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.5"
+      />
+      <circle cx="17.5" cy="6" r="1.75" fill="currentColor" />
+    </svg>
+  );
 }
 
 export function Navbar() {
@@ -35,7 +59,7 @@ export function Navbar() {
   const roleSwitcher = roles.length > 1 && (
     <select
       aria-label="Ganti peran aktif"
-      className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
+      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
       value={activeRole ?? ''}
       onChange={(event) => handleRoleSwitch(event.target.value as RoleType)}
     >
@@ -51,9 +75,16 @@ export function Navbar() {
   );
 
   const roleBadge = activeRole ? (
-    <Badge tone="info">{ROLE_LABEL[activeRole]}</Badge>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${ROLE_CHIP_CLASS[activeRole]}`}
+    >
+      <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-current" aria-hidden="true" />
+      {ROLE_LABEL[activeRole]}
+    </span>
   ) : (
-    <Badge tone="warning">Pilih peran</Badge>
+    <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+      Pilih peran
+    </span>
   );
 
   const cartLink = user && activeRole === 'BUYER' && (
@@ -63,7 +94,7 @@ export function Navbar() {
         {itemCount > 0 && (
           <span
             aria-label={`${itemCount} item di keranjang`}
-            className="absolute -right-4 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-600 px-1 text-[10px] font-semibold text-white"
+            className="tabular absolute -right-4 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-teal-600 px-1 text-[10px] font-semibold text-white"
           >
             {itemCount}
           </span>
@@ -75,7 +106,8 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link to="/" className="text-xl font-bold text-teal-700">
+        <Link to="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
+          <LogoMark />
           SEAPEDIA
         </Link>
 
@@ -131,7 +163,7 @@ export function Navbar() {
       </nav>
 
       {mobileOpen && (
-        <div className="border-t border-slate-200 px-4 py-3 md:hidden">
+        <div className="border-t border-slate-200 px-4 py-3 motion-safe:animate-[fade-in_150ms_ease-out] md:hidden">
           <div className="flex flex-col gap-3">
             <NavLink to="/" className={navLinkClass} end onClick={() => setMobileOpen(false)}>
               Beranda

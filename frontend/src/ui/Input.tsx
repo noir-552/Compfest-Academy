@@ -21,14 +21,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         id={inputId}
         name={name}
         ref={ref}
-        className={`rounded-lg border px-3 py-2 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 ${
-          error ? 'border-red-500' : 'border-slate-300'
+        className={`rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 outline-none transition duration-150 ease-out placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 ${
+          error ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-100' : 'border-slate-300'
         } ${className}`}
         aria-invalid={error ? true : undefined}
         {...props}
       />
       {error && (
-        <span className="text-xs text-red-600" role="alert">
+        <span className="text-xs text-rose-600" role="alert">
           {error}
         </span>
       )}
