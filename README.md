@@ -94,6 +94,27 @@ overdue sweep) runs inside a Prisma interactive transaction with conditional
 
 Prerequisite: **Node.js ≥ 20**.
 
+### Docker demo setup
+
+Prerequisite: Docker with Docker Compose.
+
+```bash
+docker compose up --build
+```
+
+Open the frontend at `http://localhost:5173`. The backend API is available at
+`http://localhost:3001`.
+
+The backend container automatically runs Prisma generation, applies committed
+migrations, seeds the demo data, and starts the API. SQLite data is stored in
+the `backend-data` Docker volume, so it survives container restarts. To reset
+the demo database from scratch:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
 ### Backend
 
 ```bash
