@@ -7,6 +7,7 @@ export interface ProductInput {
   description?: string;
   price: number;
   stock: number;
+  imageUrl?: string | null;
 }
 
 export interface PublicProduct {
@@ -15,6 +16,7 @@ export interface PublicProduct {
   description: string | null;
   price: number;
   stock: number;
+  imageUrl: string | null;
   isDeleted: boolean;
   createdAt: Date;
 }
@@ -25,6 +27,7 @@ interface ProductRecord {
   description: string | null;
   price: number;
   stock: number;
+  imageUrl: string | null;
   isDeleted: boolean;
   createdAt: Date;
 }
@@ -36,6 +39,7 @@ function toPublicProduct(product: ProductRecord): PublicProduct {
     description: product.description,
     price: product.price,
     stock: product.stock,
+    imageUrl: product.imageUrl,
     isDeleted: product.isDeleted,
     createdAt: product.createdAt,
   };
@@ -59,6 +63,7 @@ export async function createProduct(sellerUserId: string, input: ProductInput): 
       description: input.description ?? null,
       price: input.price,
       stock: input.stock,
+      imageUrl: input.imageUrl ?? null,
     },
   });
   return toPublicProduct(product);
@@ -98,6 +103,7 @@ export async function updateProduct(
       description: input.description ?? null,
       price: input.price,
       stock: input.stock,
+      imageUrl: input.imageUrl ?? null,
     },
   });
   return toPublicProduct(product);

@@ -17,6 +17,7 @@ export interface SellerProduct {
   description: string | null;
   price: number;
   stock: number;
+  imageUrl: string | null;
   isDeleted: boolean;
   createdAt: string;
 }
@@ -31,6 +32,7 @@ export interface ProductInput {
   description?: string;
   price: number;
   stock: number;
+  imageUrl?: string | null;
 }
 
 export function getOwnStore(): Promise<{ store: SellerStore }> {

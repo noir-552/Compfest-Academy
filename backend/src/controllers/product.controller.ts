@@ -3,11 +3,22 @@ import { z } from 'zod';
 import * as productService from '../services/product.service';
 import { ApiError } from '../lib/api-error';
 
+const imageUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .refine(
+    (value) => value.startsWith('https://') || value.startsWith('http://') || value.startsWith('/'),
+    { message: 'imageUrl must start with https://, http://, or /' },
+  );
+
 const productSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(2000).optional(),
   price: z.number().int().min(0),
   stock: z.number().int().min(0),
+  imageUrl: imageUrlSchema.nullable().optional(),
 });
 
 function requireAuth(req: Request) {

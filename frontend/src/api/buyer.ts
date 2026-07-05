@@ -101,6 +101,7 @@ export interface CartProduct {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
 }
 
 export interface CartItem {

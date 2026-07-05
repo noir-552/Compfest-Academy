@@ -56,6 +56,7 @@ export interface AdminProduct {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
   isDeleted: boolean;
   storeName: string;
   createdAt: string;

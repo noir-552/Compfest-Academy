@@ -202,6 +202,8 @@ upserts/creates missing rows, never duplicates or errors):
 | DRIVER | `kurir_cepat` | `password123` | No active job initially |
 | BUYER + SELLER + DRIVER | `rangga` | `password123` | Store "Rangga Store" — 2 products, wallet 500,000, one address. Must pick an active role after login (multi-role account) |
 
+Products carry an optional `imageUrl` (nullable string, must start with `https://`, `http://`, or `/`); all 10 seeded demo products ship with real photos under `frontend/public/product-images/`, and the frontend falls back to a gray placeholder wherever a product has no image or its photo fails to load.
+
 Discount codes seeded for demo checkout:
 
 | Code | Type | Value | Notes |

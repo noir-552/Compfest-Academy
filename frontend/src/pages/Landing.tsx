@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { listReviews, createReview, type Review } from '../api/reviews';
 import { listProducts, type PublicProduct } from '../api/catalog';
 import { ApiClientError } from '../api/client';
+import { ProductImage } from '../components/ProductImage';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Input } from '../ui/Input';
@@ -181,7 +182,11 @@ export function Landing() {
             {featured.map((product) => (
               <Link key={product.id} to={`/product/${product.id}`}>
                 <Card className="h-full transition-shadow duration-150 hover:shadow-md">
-                  <div className="mb-3 aspect-square w-full rounded-lg bg-slate-100" />
+                  <ProductImage
+                    imageUrl={product.imageUrl}
+                    name={product.name}
+                    className="mb-3 aspect-square w-full rounded-lg"
+                  />
                   <p className="text-xs font-medium text-teal-700">{product.store.storeName}</p>
                   <h3 className="mt-1 text-sm font-semibold text-slate-900">{product.name}</h3>
                   <p className="tabular mt-1 text-sm font-bold text-slate-900">Rp{product.price.toLocaleString('id-ID')}</p>

@@ -15,6 +15,7 @@ export interface PublicProductListItem {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
   store: PublicStoreRef;
 }
 
@@ -28,6 +29,7 @@ export interface PublicStoreProduct {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
 }
 
 export interface PublicStoreDetail {
@@ -48,6 +50,7 @@ interface ProductWithStore {
   description: string | null;
   price: number;
   stock: number;
+  imageUrl: string | null;
   store: { id: string; storeName: string; description: string | null };
 }
 
@@ -57,6 +60,7 @@ function toListItem(product: ProductWithStore): PublicProductListItem {
     name: product.name,
     price: product.price,
     stock: product.stock,
+    imageUrl: product.imageUrl,
     store: { id: product.store.id, storeName: product.store.storeName },
   };
 }
@@ -68,6 +72,7 @@ function toDetail(product: ProductWithStore): PublicProductDetail {
     description: product.description,
     price: product.price,
     stock: product.stock,
+    imageUrl: product.imageUrl,
     store: {
       id: product.store.id,
       storeName: product.store.storeName,
@@ -133,6 +138,12 @@ export async function getPublicStoreById(id: string): Promise<PublicStoreDetail>
     id: store.id,
     storeName: store.storeName,
     description: store.description,
-    products: store.products.map((p) => ({ id: p.id, name: p.name, price: p.price, stock: p.stock })),
+    products: store.products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      stock: p.stock,
+      imageUrl: p.imageUrl,
+    })),
   };
 }
