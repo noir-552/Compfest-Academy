@@ -103,7 +103,11 @@ export async function updateProduct(
       description: input.description ?? null,
       price: input.price,
       stock: input.stock,
-      imageUrl: input.imageUrl ?? null,
+      // imageUrl is intentionally omitted from `data` (rather than set to
+      // null) when the caller didn't send the field at all, so a partial
+      // update that doesn't mention imageUrl preserves the existing photo.
+      // An explicit `null` still clears it; an explicit string still sets it.
+      ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
     },
   });
   return toPublicProduct(product);

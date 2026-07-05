@@ -39,7 +39,7 @@ export function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
       trimmedImageUrl &&
       !trimmedImageUrl.startsWith('https://') &&
       !trimmedImageUrl.startsWith('http://') &&
-      !trimmedImageUrl.startsWith('/')
+      !(trimmedImageUrl.startsWith('/') && !trimmedImageUrl.startsWith('//'))
     ) {
       setError('URL gambar harus diawali dengan https://, http://, atau /.');
       return;

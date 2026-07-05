@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export interface ProductImageProps {
   imageUrl: string | null;
@@ -17,6 +17,13 @@ export interface ProductImageProps {
  */
 export function ProductImage({ imageUrl, name, className = '' }: ProductImageProps) {
   const [failed, setFailed] = useState(false);
+
+  // Table rows are keyed by product id, so a row's ProductImage instance is
+  // reused across re-renders with a new imageUrl. Reset the fallback state
+  // whenever the URL changes so a previous failure doesn't stick around.
+  useEffect(() => {
+    setFailed(false);
+  }, [imageUrl]);
 
   if (!imageUrl || failed) {
     return <div className={`bg-slate-100 ${className}`} aria-hidden="true" />;
