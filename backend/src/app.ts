@@ -1,4 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import express, { type Express } from 'express';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yaml';
 import { ApiError } from './lib/api-error';
 import { errorMiddleware } from './middleware/error';
 import authRoutes from './routes/auth.routes';
@@ -9,6 +13,15 @@ import catalogRoutes from './routes/catalog.routes';
 import adminRoutes from './routes/admin.routes';
 import discountRoutes from './routes/discount.routes';
 import driverRoutes from './routes/driver.routes';
+
+/**
+ * Loaded once at module scope (not per-request) — the spec is a static file
+ * that ships with the build, so re-reading it on every /api/docs or
+ * /api/openapi.json hit would be pure waste.
+ */
+const openApiDocument: Record<string, unknown> = YAML.parse(
+  fs.readFileSync(path.join(__dirname, '..', 'openapi.yaml'), 'utf-8'),
+);
 
 export function createApp(): Express {
   const app = express();
@@ -23,6 +36,11 @@ export function createApp(): Express {
   app.get('/api/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
   });
+
+  app.get('/api/openapi.json', (_req, res) => {
+    res.status(200).json(openApiDocument);
+  });
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/reviews', reviewRoutes);
