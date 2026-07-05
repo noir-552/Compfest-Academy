@@ -235,7 +235,7 @@ export async function processOrder(sellerUserId: string, orderId: string): Promi
     }
 
     await tx.orderStatusHistory.create({
-      data: { orderId, status: 'MENUNGGU_PENGIRIM', changedByRole: 'SELLER' },
+      data: { orderId, status: 'MENUNGGU_PENGIRIM', changedByRole: 'SELLER', changedAt: now() },
     });
 
     await createDeliveryJobForOrder(tx, orderId);

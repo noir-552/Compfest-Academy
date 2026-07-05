@@ -229,6 +229,15 @@ model OrderStatusHistory {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
+/**
+ * Singleton row (id always 1) holding the virtual clock's day offset. See
+ * `src/lib/clock.ts` — `now()` = real wall clock + dayOffset days.
+ */
+model AppState {
+  id        Int @id @default(1)
+  dayOffset Int @default(0)
+}
+
 model DeliveryJob {
   id             String    @id @default(uuid())
   orderId        String    @unique
