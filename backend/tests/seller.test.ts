@@ -344,6 +344,19 @@ describe('POST /api/seller/products', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
+  it('rejects a protocol-relative imageUrl with 400 VALIDATION_ERROR', async () => {
+    const token = await sellerToken('seller_prod_image_proto_rel');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+
+    const res = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: '//evil.com/x.jpg' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
   it('omits imageUrl (null) when not provided', async () => {
     const token = await sellerToken('seller_prod_image_omit');
     await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
@@ -451,6 +464,29 @@ describe('PUT /api/seller/products/:id', () => {
       .send({ ...validProduct, imageUrl: null });
     expect(clearRes.status).toBe(200);
     expect(clearRes.body.product.imageUrl).toBeNull();
+  });
+
+  it('preserves the existing imageUrl on a partial update that omits the field', async () => {
+    const token = await sellerToken('seller_prod_update_image_omit');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+    const createRes = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: '/product-images/kopi-susu-gula-aren.jpg' });
+    const productId = createRes.body.product.id as string;
+
+    // Note: `validProduct` itself has no imageUrl key, so this PUT body omits
+    // the field entirely (as opposed to sending an explicit `imageUrl: null`).
+    const res = await request(app)
+      .put(`/api/seller/products/${productId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, price: 20000 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.product.imageUrl).toBe('/product-images/kopi-susu-gula-aren.jpg');
+
+    const listRes = await request(app).get('/api/seller/products').set('Authorization', `Bearer ${token}`);
+    expect(listRes.body.products[0].imageUrl).toBe('/product-images/kopi-susu-gula-aren.jpg');
   });
 
   it('returns 404 PRODUCT_NOT_FOUND when the product does not exist', async () => {

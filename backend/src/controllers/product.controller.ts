@@ -9,7 +9,10 @@ const imageUrlSchema = z
   .min(1)
   .max(500)
   .refine(
-    (value) => value.startsWith('https://') || value.startsWith('http://') || value.startsWith('/'),
+    (value) =>
+      value.startsWith('https://') ||
+      value.startsWith('http://') ||
+      (value.startsWith('/') && !value.startsWith('//')),
     { message: 'imageUrl must start with https://, http://, or /' },
   );
 
