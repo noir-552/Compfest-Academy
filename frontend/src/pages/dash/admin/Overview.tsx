@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import * as adminApi from '../../../api/admin';
 import { Badge } from '../../../ui/Badge';
 import { Card } from '../../../ui/Card';
-import { ORDER_STATUS_LABEL, orderStatusTone, JOB_STATUS_LABEL, jobStatusTone } from './statusLabels';
+import { StatusPill } from '../../../ui/StatusPill';
+import { JOB_STATUS_LABEL, jobStatusTone } from './statusLabels';
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString('id-ID', { dateStyle: 'full' });
@@ -75,8 +76,8 @@ export function Overview() {
           <ul className="flex flex-col gap-2">
             {Object.entries(counts.ordersByStatus).map(([status, count]) => (
               <li key={status} className="flex items-center justify-between text-sm">
-                <Badge tone={orderStatusTone(status)}>{ORDER_STATUS_LABEL[status] ?? status}</Badge>
-                <span className="font-medium text-slate-900">{count}</span>
+                <StatusPill status={status} />
+                <span className="tabular font-medium text-slate-900">{count}</span>
               </li>
             ))}
           </ul>

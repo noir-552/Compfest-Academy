@@ -6,6 +6,8 @@ import { formatRupiah } from '../../../lib/format';
 import { Badge } from '../../../ui/Badge';
 import { Button } from '../../../ui/Button';
 import { Card } from '../../../ui/Card';
+import { EmptyState } from '../../../ui/EmptyState';
+import { SkeletonList } from '../../../ui/Skeleton';
 
 function methodLabel(method: string): string {
   return DELIVERY_METHOD_LABEL[method as DeliveryMethod] ?? method;
@@ -57,11 +59,7 @@ export function AvailableJobs() {
   }
 
   if (loading) {
-    return (
-      <Card>
-        <p className="text-sm text-slate-500">Memuat job...</p>
-      </Card>
-    );
+    return <SkeletonList rows={3} />;
   }
 
   if (error) {
@@ -84,7 +82,10 @@ export function AvailableJobs() {
 
       {jobs.length === 0 ? (
         <Card>
-          <p className="text-sm text-slate-500">Belum ada job yang tersedia.</p>
+          <EmptyState
+            heading="Belum ada job yang tersedia"
+            teachLine="Job pengiriman baru muncul di sini segera setelah penjual memproses pesanan pembeli."
+          />
         </Card>
       ) : (
         jobs.map((job) => (
@@ -100,8 +101,8 @@ export function AvailableJobs() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <p className="text-sm font-semibold text-slate-900">{formatRupiah(job.order.deliveryFee)}</p>
-                <Button onClick={() => handleTake(job.id)} disabled={takingId === job.id}>
+                <p className="tabular text-sm font-semibold text-slate-900">{formatRupiah(job.order.deliveryFee)}</p>
+                <Button onClick={() => handleTake(job.id)} loading={takingId === job.id}>
                   {takingId === job.id ? 'Mengambil...' : 'Ambil Job'}
                 </Button>
               </div>

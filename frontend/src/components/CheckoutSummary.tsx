@@ -16,7 +16,7 @@ function Row({ label, value, emphasis = false }: { label: string; value: number;
       }`}
     >
       <span>{label}</span>
-      <span>{formatRupiah(value)}</span>
+      <span className="tabular">{formatRupiah(value)}</span>
     </div>
   );
 }

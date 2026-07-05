@@ -1,22 +1,8 @@
 import { useEffect, useState } from 'react';
 import * as sellerApi from '../../../api/seller';
 import { formatRupiah } from '../../../lib/format';
-import { Badge } from '../../../ui/Badge';
 import { Card } from '../../../ui/Card';
-
-const STATUS_LABEL: Record<string, string> = {
-  SEDANG_DIKEMAS: 'Sedang Dikemas',
-  MENUNGGU_PENGIRIM: 'Menunggu Pengirim',
-  SEDANG_DIKIRIM: 'Sedang Dikirim',
-  PESANAN_SELESAI: 'Pesanan Selesai',
-  DIKEMBALIKAN: 'Dikembalikan',
-};
-
-function statusTone(status: string): 'neutral' | 'success' | 'warning' | 'info' {
-  if (status === 'PESANAN_SELESAI') return 'success';
-  if (status === 'DIKEMBALIKAN') return 'warning';
-  return 'info';
-}
+import { StatusPill } from '../../../ui/StatusPill';
 
 export function Report() {
   const [report, setReport] = useState<sellerApi.SellerReport | null>(null);
@@ -72,8 +58,8 @@ export function Report() {
           <ul className="flex flex-col gap-2">
             {statusEntries.map(([status, count]) => (
               <li key={status} className="flex items-center justify-between text-sm">
-                <Badge tone={statusTone(status)}>{STATUS_LABEL[status] ?? status}</Badge>
-                <span className="font-medium text-slate-900">{count}</span>
+                <StatusPill status={status} />
+                <span className="tabular font-medium text-slate-900">{count}</span>
               </li>
             ))}
           </ul>
