@@ -39,6 +39,7 @@ export async function resetDb(): Promise<void> {
   await prisma.userRole.deleteMany();
   await prisma.appReview.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.appState.deleteMany();
 }
 
 let userCounter = 0;

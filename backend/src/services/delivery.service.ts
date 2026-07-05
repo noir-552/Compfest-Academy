@@ -164,12 +164,18 @@ export async function takeJob(driverUserId: string, jobId: string): Promise<Driv
       throw new ApiError(409, 'JOB_ALREADY_TAKEN', 'This job has already been taken');
     }
 
-    await tx.order.updateMany({
+    const orderFlip = await tx.order.updateMany({
       where: { id: job.orderId, currentStatus: 'MENUNGGU_PENGIRIM' },
       data: { currentStatus: 'SEDANG_DIKIRIM' },
     });
+    if (orderFlip.count === 0) {
+      // The order was returned/refunded (or otherwise moved) concurrently by
+      // the overdue sweep — never let the job flip to TAKEN while the order
+      // diverges from it. Throwing here rolls back the job update above too.
+      throw new ApiError(409, 'INVALID_STATUS', 'Order status changed concurrently; job cannot be taken');
+    }
     await tx.orderStatusHistory.create({
-      data: { orderId: job.orderId, status: 'SEDANG_DIKIRIM', changedByRole: 'DRIVER' },
+      data: { orderId: job.orderId, status: 'SEDANG_DIKIRIM', changedByRole: 'DRIVER', changedAt: now() },
     });
 
     const updated = await tx.deliveryJob.findUniqueOrThrow({ where: { id: jobId }, include: jobInclude });
@@ -202,12 +208,17 @@ export async function completeJob(driverUserId: string, jobId: string): Promise<
       throw new ApiError(409, 'INVALID_STATUS', `Job status is ${job.status}, expected TAKEN`);
     }
 
-    await tx.order.updateMany({
+    const orderFlip = await tx.order.updateMany({
       where: { id: job.orderId, currentStatus: 'SEDANG_DIKIRIM' },
       data: { currentStatus: 'PESANAN_SELESAI' },
     });
+    if (orderFlip.count === 0) {
+      // Mirrors takeJob's guard: the order was returned/refunded concurrently
+      // by the overdue sweep, so this job can't complete against it.
+      throw new ApiError(409, 'INVALID_STATUS', 'Order status changed concurrently; job cannot be completed');
+    }
     await tx.orderStatusHistory.create({
-      data: { orderId: job.orderId, status: 'PESANAN_SELESAI', changedByRole: 'DRIVER' },
+      data: { orderId: job.orderId, status: 'PESANAN_SELESAI', changedByRole: 'DRIVER', changedAt: now() },
     });
 
     const updated = await tx.deliveryJob.findUniqueOrThrow({ where: { id: jobId }, include: jobInclude });

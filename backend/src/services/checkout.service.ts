@@ -6,6 +6,7 @@ import type { DeliveryMethod, DiscountInput, TotalsResult } from '../lib/money';
 import { getOrCreateCart, pruneCart } from './cart.service';
 import type { LiveCartItem } from './cart.service';
 import { getOrCreateWallet } from './wallet.service';
+import { now } from '../lib/clock';
 import { computeSlaDeadline, toOrderDetail } from './order.service';
 import type { OrderDetail } from './order.service';
 import { loadVoucherForCheckout, loadPromoForCheckout, toDiscountInput } from './discount.service';
@@ -233,7 +234,7 @@ export async function checkout(buyerUserId: string, input: CheckoutInput): Promi
           })),
         },
         statusHistory: {
-          create: [{ status: 'SEDANG_DIKEMAS', changedByRole: 'BUYER' }],
+          create: [{ status: 'SEDANG_DIKEMAS', changedByRole: 'BUYER', changedAt: now() }],
         },
       },
       include: {
