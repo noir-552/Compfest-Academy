@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import * as sellerApi from '../../../api/seller';
 import { ApiClientError } from '../../../api/client';
 import { Button } from '../../../ui/Button';
 import { Input } from '../../../ui/Input';
+import { ProductImage } from '../../../components/ProductImage';
 
 export interface ProductFormProps {
   product: sellerApi.SellerProduct | null;
@@ -17,7 +18,27 @@ export function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
   const [stock, setStock] = useState(product ? String(product.stock) : '');
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? '');
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setUploading(true);
+    try {
+      const res = await sellerApi.uploadProductImage(file);
+      setImageUrl(res.url);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Gagal mengunggah foto.');
+    } finally {
+      setUploading(false);
+      // Reset so selecting the same file again (e.g. after a failed upload) still fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -108,6 +129,32 @@ export function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
         value={stock}
         onChange={(event) => setStock(event.target.value)}
       />
+      <div className="flex flex-col gap-2">
+        <label htmlFor="productPhotoUpload" className="text-sm font-medium text-slate-700">
+          Upload foto (opsional)
+        </label>
+        <div className="flex items-center gap-3">
+          <ProductImage
+            imageUrl={imageUrl || null}
+            name={name || 'Produk'}
+            className="h-16 w-16 shrink-0 rounded-lg"
+          />
+          <input
+            ref={fileInputRef}
+            id="productPhotoUpload"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={uploading}
+            onChange={handleFileChange}
+            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-teal-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-teal-700 hover:file:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          {uploading && (
+            <span className="text-sm text-slate-500" role="status">
+              Mengunggah...
+            </span>
+          )}
+        </div>
+      </div>
       <Input
         label="URL Gambar (opsional)"
         name="imageUrl"

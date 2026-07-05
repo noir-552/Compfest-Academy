@@ -13,6 +13,7 @@ import catalogRoutes from './routes/catalog.routes';
 import adminRoutes from './routes/admin.routes';
 import discountRoutes from './routes/discount.routes';
 import driverRoutes from './routes/driver.routes';
+import { UPLOADS_DIR, ensureUploadsDir } from './lib/uploads';
 
 /**
  * Loaded once at module scope (not per-request) — the spec is a static file
@@ -24,6 +25,8 @@ const openApiDocument: Record<string, unknown> = YAML.parse(
 );
 
 export function createApp(): Express {
+  ensureUploadsDir();
+
   const app = express();
 
   // Body-size cap: rejects oversized request bodies (413) before they reach
@@ -50,6 +53,15 @@ export function createApp(): Express {
   app.use('/api/discounts', discountRoutes);
   app.use('/api/driver', driverRoutes);
   app.use('/api', catalogRoutes);
+
+  // Serves uploaded product photos. fallthrough:false makes a missing file
+  // emit an error (caught by errorMiddleware and mapped to the 404 envelope)
+  // instead of silently falling through to the /api catch-all below —
+  // mounted before it so that fallthrough never actually gets exercised.
+  app.use(
+    '/api/uploads',
+    express.static(UPLOADS_DIR, { fallthrough: false, immutable: true, maxAge: '7d' }),
+  );
 
   app.use('/api', (_req, _res, next) => {
     next(new ApiError(404, 'NOT_FOUND', 'Route not found'));
