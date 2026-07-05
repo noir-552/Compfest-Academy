@@ -31,6 +31,15 @@ import { MyJob } from './pages/dash/driver/MyJob';
 import { History as DriverHistory } from './pages/dash/driver/History';
 import { Earnings as DriverEarnings } from './pages/dash/driver/Earnings';
 import { AdminDash } from './pages/dash/AdminDash';
+import { Overview as AdminOverview } from './pages/dash/admin/Overview';
+import { Users as AdminUsers } from './pages/dash/admin/Users';
+import { Stores as AdminStores } from './pages/dash/admin/Stores';
+import { Products as AdminProducts } from './pages/dash/admin/Products';
+import { Orders as AdminOrders } from './pages/dash/admin/Orders';
+import { Jobs as AdminJobs } from './pages/dash/admin/Jobs';
+import { Discounts as AdminDiscounts } from './pages/dash/admin/Discounts';
+import { Overdue as AdminOverdue } from './pages/dash/admin/Overdue';
+import { Simulate as AdminSimulate } from './pages/dash/admin/Simulate';
 
 function RootLayout() {
   return (
@@ -111,7 +120,24 @@ const router = createBrowserRouter([
           },
           {
             element: <RequireRole role="ADMIN" />,
-            children: [{ path: '/dashboard/admin', element: <AdminDash /> }],
+            children: [
+              {
+                path: '/dashboard/admin',
+                element: <AdminDash />,
+                children: [
+                  { index: true, element: <Navigate to="overview" replace /> },
+                  { path: 'overview', element: <AdminOverview /> },
+                  { path: 'users', element: <AdminUsers /> },
+                  { path: 'stores', element: <AdminStores /> },
+                  { path: 'products', element: <AdminProducts /> },
+                  { path: 'orders', element: <AdminOrders /> },
+                  { path: 'jobs', element: <AdminJobs /> },
+                  { path: 'discounts', element: <AdminDiscounts /> },
+                  { path: 'overdue', element: <AdminOverdue /> },
+                  { path: 'simulate', element: <AdminSimulate /> },
+                ],
+              },
+            ],
           },
         ],
       },
