@@ -259,6 +259,7 @@ describe('GET /api/admin/products', () => {
     );
     expect(entry?.storeName).toContain('Toko Admin');
     expect(entry?.isDeleted).toBe(true);
+    expect(entry).toHaveProperty('imageUrl');
   });
 });
 

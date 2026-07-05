@@ -5,6 +5,7 @@ import * as buyerApi from '../api/buyer';
 import { ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { useCart } from '../cart/CartContext';
+import { ProductImage } from '../components/ProductImage';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -105,7 +106,7 @@ export function ProductDetail() {
         ← Kembali ke katalog
       </Link>
       <div className="mt-4 grid grid-cols-1 gap-8 sm:grid-cols-2">
-        <div className="aspect-square w-full rounded-xl bg-slate-100" />
+        <ProductImage imageUrl={product.imageUrl} name={product.name} className="aspect-square w-full rounded-xl" />
         <div className="flex flex-col gap-3">
           <Link to={`/stores/${product.store.id}`} className="w-fit">
             <Badge tone="info">{product.store.storeName}</Badge>

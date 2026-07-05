@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as sellerApi from '../../../api/seller';
 import { ApiClientError } from '../../../api/client';
+import { ProductImage } from '../../../components/ProductImage';
 import { Button } from '../../../ui/Button';
 import { Card } from '../../../ui/Card';
 import { Modal } from '../../../ui/Modal';
@@ -59,6 +60,11 @@ export function ProductList() {
   }
 
   const columns: TableColumn<sellerApi.SellerProduct>[] = [
+    {
+      key: 'image',
+      header: '',
+      render: (p) => <ProductImage imageUrl={p.imageUrl} name={p.name} className="h-10 w-10 rounded-md" />,
+    },
     { key: 'name', header: 'Nama', render: (p) => p.name },
     { key: 'price', header: 'Harga', render: (p) => `Rp ${p.price.toLocaleString('id-ID')}` },
     { key: 'stock', header: 'Stok', render: (p) => p.stock },

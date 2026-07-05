@@ -13,6 +13,7 @@ export interface PublicProduct {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
   store: PublicStoreRef;
 }
 
@@ -26,6 +27,7 @@ export interface PublicStoreProduct {
   name: string;
   price: number;
   stock: number;
+  imageUrl: string | null;
 }
 
 export interface PublicStoreDetail {

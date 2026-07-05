@@ -301,6 +301,61 @@ describe('POST /api/seller/products', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
+
+  it('persists and returns a valid imageUrl (201)', async () => {
+    const token = await sellerToken('seller_prod_image_url');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+
+    const res = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: '/product-images/kopi-susu-gula-aren.jpg' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.product.imageUrl).toBe('/product-images/kopi-susu-gula-aren.jpg');
+
+    const listRes = await request(app).get('/api/seller/products').set('Authorization', `Bearer ${token}`);
+    expect(listRes.body.products[0].imageUrl).toBe('/product-images/kopi-susu-gula-aren.jpg');
+  });
+
+  it('rejects an imageUrl with a javascript: scheme with 400 VALIDATION_ERROR', async () => {
+    const token = await sellerToken('seller_prod_image_js');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+
+    const res = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: 'javascript:alert(1)' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects an imageUrl over 500 chars with 400 VALIDATION_ERROR', async () => {
+    const token = await sellerToken('seller_prod_image_long');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+
+    const res = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: `https://example.com/${'a'.repeat(500)}.jpg` });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('omits imageUrl (null) when not provided', async () => {
+    const token = await sellerToken('seller_prod_image_omit');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+
+    const res = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send(validProduct);
+
+    expect(res.status).toBe(201);
+    expect(res.body.product.imageUrl).toBeNull();
+  });
 });
 
 describe('GET /api/seller/products', () => {
@@ -372,6 +427,30 @@ describe('PUT /api/seller/products/:id', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.product.price).toBe(20000);
+  });
+
+  it('sets and then clears imageUrl via null', async () => {
+    const token = await sellerToken('seller_prod_update_image');
+    await request(app).post('/api/seller/store').set('Authorization', `Bearer ${token}`).send(validStore);
+    const createRes = await request(app)
+      .post('/api/seller/products')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: '/product-images/kopi-susu-gula-aren.jpg' });
+    const productId = createRes.body.product.id as string;
+
+    const setRes = await request(app)
+      .put(`/api/seller/products/${productId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: '/product-images/roti-bakar-coklat.jpg' });
+    expect(setRes.status).toBe(200);
+    expect(setRes.body.product.imageUrl).toBe('/product-images/roti-bakar-coklat.jpg');
+
+    const clearRes = await request(app)
+      .put(`/api/seller/products/${productId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...validProduct, imageUrl: null });
+    expect(clearRes.status).toBe(200);
+    expect(clearRes.body.product.imageUrl).toBeNull();
   });
 
   it('returns 404 PRODUCT_NOT_FOUND when the product does not exist', async () => {

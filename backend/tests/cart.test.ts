@@ -112,7 +112,7 @@ describe('POST /api/buyer/cart/items', () => {
     expect(res.body.cart.store).toMatchObject({ id: storeId, storeName: 'Toko Budi' });
     expect(res.body.cart.items).toHaveLength(1);
     expect(res.body.cart.items[0]).toMatchObject({
-      product: { id: productId, name: 'Kopi Susu', price: 15000, stock: 10 },
+      product: { id: productId, name: 'Kopi Susu', price: 15000, stock: 10, imageUrl: null },
       quantity: 2,
       lineTotal: 30000,
     });

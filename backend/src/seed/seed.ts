@@ -78,12 +78,15 @@ interface SeedProductInput {
   description: string;
   price: number;
   stock: number;
+  imageUrl: string;
 }
 
 async function upsertProduct(storeId: string, input: SeedProductInput): Promise<void> {
   // Product has no unique constraint beyond `id`, so idempotency here is a
   // manual find-then-write keyed on (storeId, name) — the natural identity
-  // of "this seed's copy of this product" for a given store.
+  // of "this seed's copy of this product" for a given store. The update
+  // branch also backfills imageUrl so re-seeding an older DB (created before
+  // product photos existed) picks up the real photo on existing rows.
   const existing = await prisma.product.findFirst({ where: { storeId, name: input.name } });
   if (existing) {
     await prisma.product.update({
@@ -92,6 +95,7 @@ async function upsertProduct(storeId: string, input: SeedProductInput): Promise<
         description: input.description,
         price: input.price,
         stock: input.stock,
+        imageUrl: input.imageUrl,
         isDeleted: false,
       },
     });
@@ -104,8 +108,14 @@ async function upsertProduct(storeId: string, input: SeedProductInput): Promise<
       description: input.description,
       price: input.price,
       stock: input.stock,
+      imageUrl: input.imageUrl,
     },
   });
+}
+
+/** Maps a seeded product's display name to its real demo photo under `frontend/public/product-images/`. */
+function productImageUrl(slug: string): string {
+  return `/product-images/${slug}.jpg`;
 }
 
 /**
@@ -255,11 +265,11 @@ async function main(): Promise<void> {
     'Warung makan & minuman rumahan, siap kirim.',
   );
   const tokoMajuProducts: SeedProductInput[] = [
-    { name: 'Kopi Susu Gula Aren', description: 'Kopi susu manis dengan gula aren asli', price: 18000, stock: 50 },
-    { name: 'Roti Bakar Coklat', description: 'Roti bakar isi coklat keju', price: 15000, stock: 30 },
-    { name: 'Nasi Goreng Spesial', description: 'Nasi goreng dengan telur, ayam, dan kerupuk', price: 25000, stock: 20 },
-    { name: 'Es Teh Manis', description: 'Es teh manis segar', price: 5000, stock: 100 },
-    { name: 'Ayam Geprek', description: 'Ayam geprek sambal bawang level pedas custom', price: 20000, stock: 40 },
+    { name: 'Kopi Susu Gula Aren', description: 'Kopi susu manis dengan gula aren asli', price: 18000, stock: 50, imageUrl: productImageUrl('kopi-susu-gula-aren') },
+    { name: 'Roti Bakar Coklat', description: 'Roti bakar isi coklat keju', price: 15000, stock: 30, imageUrl: productImageUrl('roti-bakar-coklat') },
+    { name: 'Nasi Goreng Spesial', description: 'Nasi goreng dengan telur, ayam, dan kerupuk', price: 25000, stock: 20, imageUrl: productImageUrl('nasi-goreng-spesial') },
+    { name: 'Es Teh Manis', description: 'Es teh manis segar', price: 5000, stock: 100, imageUrl: productImageUrl('es-teh-manis') },
+    { name: 'Ayam Geprek', description: 'Ayam geprek sambal bawang level pedas custom', price: 20000, stock: 40, imageUrl: productImageUrl('ayam-geprek') },
   ];
   for (const product of tokoMajuProducts) {
     await upsertProduct(tokoMajuStore.id, product);
@@ -278,9 +288,9 @@ async function main(): Promise<void> {
     'Toko pakaian dan aksesoris kasual.',
   );
   const sinarJayaProducts: SeedProductInput[] = [
-    { name: 'Kaos Polos Cotton', description: 'Kaos polos katun combed 30s, unisex', price: 45000, stock: 25 },
-    { name: 'Celana Jeans Slim Fit', description: 'Celana jeans slim fit warna biru dongker', price: 150000, stock: 15 },
-    { name: 'Topi Baseball', description: 'Topi baseball adjustable, berbagai warna', price: 35000, stock: 20 },
+    { name: 'Kaos Polos Cotton', description: 'Kaos polos katun combed 30s, unisex', price: 45000, stock: 25, imageUrl: productImageUrl('kaos-polos-cotton') },
+    { name: 'Celana Jeans Slim Fit', description: 'Celana jeans slim fit warna biru dongker', price: 150000, stock: 15, imageUrl: productImageUrl('celana-jeans-slim-fit') },
+    { name: 'Topi Baseball', description: 'Topi baseball adjustable, berbagai warna', price: 35000, stock: 20, imageUrl: productImageUrl('topi-baseball') },
   ];
   for (const product of sinarJayaProducts) {
     await upsertProduct(sinarJayaStore.id, product);
@@ -325,8 +335,8 @@ async function main(): Promise<void> {
     'Alat tulis dan perlengkapan kantor.',
   );
   const ranggaProducts: SeedProductInput[] = [
-    { name: 'Buku Catatan A5', description: 'Buku catatan hardcover A5, 100 lembar', price: 12000, stock: 60 },
-    { name: 'Pulpen Gel Set', description: 'Set 5 pulpen gel warna-warni', price: 18000, stock: 40 },
+    { name: 'Buku Catatan A5', description: 'Buku catatan hardcover A5, 100 lembar', price: 12000, stock: 60, imageUrl: productImageUrl('buku-catatan-a5') },
+    { name: 'Pulpen Gel Set', description: 'Set 5 pulpen gel warna-warni', price: 18000, stock: 40, imageUrl: productImageUrl('pulpen-gel-set') },
   ];
   for (const product of ranggaProducts) {
     await upsertProduct(ranggaStore.id, product);

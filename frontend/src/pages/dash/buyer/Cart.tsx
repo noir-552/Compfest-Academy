@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import * as buyerApi from '../../../api/buyer';
 import { ApiClientError } from '../../../api/client';
 import { useCart } from '../../../cart/CartContext';
+import { ProductImage } from '../../../components/ProductImage';
 import { formatRupiah } from '../../../lib/format';
 import { Button } from '../../../ui/Button';
 import { Card } from '../../../ui/Card';
@@ -117,6 +118,11 @@ export function Cart() {
             {cart.items.map((item) => (
               <Card key={item.product.id}>
                 <div className="flex items-center justify-between gap-4">
+                  <ProductImage
+                    imageUrl={item.product.imageUrl}
+                    name={item.product.name}
+                    className="h-14 w-14 flex-shrink-0 rounded-lg"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-slate-900">{item.product.name}</p>
                     <p className="tabular text-sm text-slate-500">{formatRupiah(item.product.price)}</p>

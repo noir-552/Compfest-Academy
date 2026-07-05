@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as adminApi from '../../../api/admin';
+import { ProductImage } from '../../../components/ProductImage';
 import { formatRupiah } from '../../../lib/format';
 import { Badge } from '../../../ui/Badge';
 import { Card } from '../../../ui/Card';
@@ -24,6 +25,11 @@ export function Products() {
   }, []);
 
   const columns: TableColumn<adminApi.AdminProduct>[] = [
+    {
+      key: 'image',
+      header: '',
+      render: (p) => <ProductImage imageUrl={p.imageUrl} name={p.name} className="h-10 w-10 rounded-md" />,
+    },
     { key: 'name', header: 'Nama Produk', render: (p) => p.name },
     { key: 'storeName', header: 'Toko', render: (p) => p.storeName },
     { key: 'price', header: 'Harga', render: (p) => formatRupiah(p.price) },

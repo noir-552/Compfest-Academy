@@ -15,6 +15,7 @@ export function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
   const [description, setDescription] = useState(product?.description ?? '');
   const [price, setPrice] = useState(product ? String(product.price) : '');
   const [stock, setStock] = useState(product ? String(product.stock) : '');
+  const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,9 +34,26 @@ export function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
       return;
     }
 
+    const trimmedImageUrl = imageUrl.trim();
+    if (
+      trimmedImageUrl &&
+      !trimmedImageUrl.startsWith('https://') &&
+      !trimmedImageUrl.startsWith('http://') &&
+      !trimmedImageUrl.startsWith('/')
+    ) {
+      setError('URL gambar harus diawali dengan https://, http://, atau /.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const input = { name, description: description || undefined, price: priceNum, stock: stockNum };
+      const input = {
+        name,
+        description: description || undefined,
+        price: priceNum,
+        stock: stockNum,
+        imageUrl: trimmedImageUrl || null,
+      };
       const res = product
         ? await sellerApi.updateProduct(product.id, input)
         : await sellerApi.createProduct(input);
@@ -89,6 +107,14 @@ export function ProductForm({ product, onSaved, onCancel }: ProductFormProps) {
         required
         value={stock}
         onChange={(event) => setStock(event.target.value)}
+      />
+      <Input
+        label="URL Gambar (opsional)"
+        name="imageUrl"
+        placeholder="/product-images/nama-produk.jpg"
+        maxLength={500}
+        value={imageUrl}
+        onChange={(event) => setImageUrl(event.target.value)}
       />
       {error && (
         <p className="text-sm text-red-600" role="alert">
