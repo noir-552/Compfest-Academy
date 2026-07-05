@@ -1,0 +1,253 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  email        String
+  phone        String
+  createdAt    DateTime @default(now())
+
+  roles     UserRole[]
+  sessions  Session[]
+  store     Store?
+  wallet    Wallet?
+  addresses Address[]
+  cart      Cart?
+  orders    Order[]
+
+  createdVouchers Voucher[]
+  createdPromos   Promo[]
+  deliveryJobs    DeliveryJob[]
+}
+
+model UserRole {
+  id       String @id @default(uuid())
+  userId   String
+  roleType String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleType])
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  activeRole String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AppReview {
+  id           String   @id @default(uuid())
+  userId       String?
+  reviewerName String
+  rating       Int
+  comment      String
+  createdAt    DateTime @default(now())
+}
+
+model Store {
+  id           String   @id @default(uuid())
+  sellerUserId String   @unique
+  storeName    String   @unique
+  description  String?
+  createdAt    DateTime @default(now())
+
+  seller   User      @relation(fields: [sellerUserId], references: [id], onDelete: Cascade)
+  products Product[]
+  carts    Cart[]
+  orders   Order[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String
+  description String?
+  price       Int
+  stock       Int
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  store      Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+model Wallet {
+  id          String   @id @default(uuid())
+  buyerUserId String   @unique
+  balance     Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  buyer        User                @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id        String   @id @default(uuid())
+  walletId  String
+  orderId   String?
+  type      String
+  amount    Int
+  createdAt DateTime @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+}
+
+model Address {
+  id            String   @id @default(uuid())
+  buyerUserId   String
+  label         String
+  recipientName String
+  phone         String
+  fullAddress   String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  buyer  User    @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  orders Order[]
+}
+
+model Cart {
+  id          String   @id @default(uuid())
+  buyerUserId String   @unique
+  storeId     String?
+  updatedAt   DateTime @updatedAt
+
+  buyer User       @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  store Store?     @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  items CartItem[]
+}
+
+model CartItem {
+  id        String @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+}
+
+model Order {
+  id                    String   @id @default(uuid())
+  buyerUserId           String
+  storeId               String
+  addressId             String
+  voucherId             String?
+  promoId               String?
+  deliveryMethod        String
+  subtotal              Int
+  discountAmount        Int      @default(0)
+  deliveryFee           Int
+  ppnAmount             Int
+  finalTotal            Int
+  currentStatus         String   @default("SEDANG_DIKEMAS")
+  isRefunded            Boolean  @default(false)
+  isStockRestored       Boolean  @default(false)
+  isVoucherRestored     Boolean  @default(false)
+  recipientNameSnapshot String
+  phoneSnapshot         String
+  fullAddressSnapshot   String
+  slaDeadline           DateTime
+  createdAt             DateTime @default(now())
+
+  buyer   User    @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  address Address @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  voucher Voucher? @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+  promo   Promo?   @relation(fields: [promoId], references: [id], onDelete: SetNull)
+
+  items              OrderItem[]
+  statusHistory      OrderStatusHistory[]
+  walletTransactions WalletTransaction[]
+  deliveryJob        DeliveryJob?
+}
+
+model Voucher {
+  id               String   @id @default(uuid())
+  createdByAdminId String
+  code             String   @unique
+  discountType     String
+  discountValue    Int
+  usageLimit       Int
+  usageRemaining   Int
+  expiryDate       DateTime
+  createdAt        DateTime @default(now())
+
+  createdByAdmin User    @relation(fields: [createdByAdminId], references: [id], onDelete: Cascade)
+  orders         Order[]
+}
+
+model Promo {
+  id               String   @id @default(uuid())
+  createdByAdminId String
+  code             String   @unique
+  discountType     String
+  discountValue    Int
+  expiryDate       DateTime
+  createdAt        DateTime @default(now())
+
+  createdByAdmin User    @relation(fields: [createdByAdminId], references: [id], onDelete: Cascade)
+  orders         Order[]
+}
+
+model OrderItem {
+  id                  String @id @default(uuid())
+  orderId             String
+  productId           String
+  productNameSnapshot String
+  priceSnapshot       Int
+  quantity            Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model OrderStatusHistory {
+  id            String   @id @default(uuid())
+  orderId       String
+  status        String
+  changedByRole String
+  changedAt     DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * Singleton row (id always 1) holding the virtual clock's day offset. See
+ * `src/lib/clock.ts` — `now()` = real wall clock + dayOffset days.
+ */
+model AppState {
+  id        Int @id @default(1)
+  dayOffset Int @default(0)
+}
+
+model DeliveryJob {
+  id             String    @id @default(uuid())
+  orderId        String    @unique
+  driverUserId   String?
+  status         String    @default("AVAILABLE") // AVAILABLE|TAKEN|COMPLETED|CANCELLED
+  driverEarning  Int       @default(0)
+  takenAt        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  order  Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver User? @relation(fields: [driverUserId], references: [id], onDelete: SetNull)
+}

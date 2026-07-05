@@ -1,0 +1,140 @@
+@import "tailwindcss";
+@import "@fontsource-variable/plus-jakarta-sans";
+
+/*
+ * SEAPEDIA design tokens (see DESIGN.md). Teal is the committed identity
+ * spine and slate is retuned to an inky, blue-leaning neutral so existing
+ * `teal-*` / `slate-*` utilities across ~40 pages inherit the refined system
+ * without per-page edits. Status colors (amber/violet/sky/emerald/rose) use
+ * Tailwind's stock ramps — they already sit close to the DESIGN.md OKLCH
+ * values and stay reserved for the order-lifecycle system only.
+ */
+@theme {
+  /* Teal spine (identity + primary actions). teal-600/700 are deepened a
+     touch past DESIGN.md's literal 0.58/0.5 lightness so white button text
+     clears 4.5:1 AA (measured 4.67:1 / 6.44:1 respectively). */
+  --color-teal-50: oklch(0.97 0.02 195);
+  --color-teal-100: oklch(0.94 0.035 195);
+  --color-teal-200: oklch(0.88 0.05 195);
+  --color-teal-300: oklch(0.78 0.07 195);
+  --color-teal-400: oklch(0.66 0.095 195);
+  --color-teal-500: oklch(0.6 0.105 195);
+  --color-teal-600: oklch(0.54 0.11 195);
+  --color-teal-700: oklch(0.46 0.11 195);
+  --color-teal-800: oklch(0.38 0.095 195);
+  --color-teal-900: oklch(0.3 0.075 195);
+
+  /* Slate, retuned inky blue-slate neutral (text stays >=4.5:1 on surface) */
+  --color-slate-50: oklch(0.985 0.002 200);
+  --color-slate-100: oklch(0.965 0.004 200);
+  --color-slate-200: oklch(0.9 0.006 220);
+  --color-slate-300: oklch(0.82 0.01 225);
+  --color-slate-400: oklch(0.68 0.016 228);
+  --color-slate-500: oklch(0.44 0.02 235);
+  --color-slate-600: oklch(0.38 0.024 234);
+  --color-slate-700: oklch(0.32 0.026 234);
+  --color-slate-800: oklch(0.27 0.028 235);
+  --color-slate-900: oklch(0.23 0.03 235);
+
+  /* Semantic tokens */
+  --color-bg: oklch(0.985 0.002 200);
+  --color-surface: oklch(1 0 0);
+  --color-surface-2: oklch(0.965 0.004 200);
+  --color-ink: oklch(0.23 0.03 235);
+  --color-ink-soft: oklch(0.44 0.02 235);
+  --color-line: oklch(0.9 0.006 220);
+  --color-primary: oklch(0.54 0.11 195);
+  --color-primary-strong: oklch(0.46 0.11 195);
+  --color-primary-tint: oklch(0.96 0.03 195);
+  /* --color-accent is the decorative coral (large fills, dots, icon bg) —
+     NOT for text on its own (2.8:1 on white). --color-accent-strong is the
+     same hue deepened to 6.45:1 for accent text/hover use. */
+  --color-accent: oklch(0.7 0.16 40);
+  --color-accent-strong: oklch(0.5 0.16 40);
+  --color-accent-tint: oklch(0.96 0.03 40);
+
+  /* Role tints — buyer=teal, seller=indigo, driver=coral, admin=ink.
+     role-driver uses the text-safe accent-strong coral, not the decorative one. */
+  --color-role-buyer: oklch(0.54 0.11 195);
+  --color-role-seller: oklch(0.55 0.13 275);
+  --color-role-driver: oklch(0.5 0.16 40);
+  --color-role-admin: oklch(0.23 0.03 235);
+
+  --font-sans:
+    'Plus Jakarta Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+}
+
+::selection {
+  background-color: var(--color-primary-tint);
+  color: var(--color-ink);
+}
+
+/* Tabular figures for rupiah/quantity displays — presentational only. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
