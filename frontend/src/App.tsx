@@ -26,6 +26,10 @@ import { StoreOverview } from './pages/dash/seller/StoreOverview';
 import { IncomingOrders } from './pages/dash/seller/IncomingOrders';
 import { Report as SellerReport } from './pages/dash/seller/Report';
 import { DriverDash } from './pages/dash/DriverDash';
+import { AvailableJobs } from './pages/dash/driver/AvailableJobs';
+import { MyJob } from './pages/dash/driver/MyJob';
+import { History as DriverHistory } from './pages/dash/driver/History';
+import { Earnings as DriverEarnings } from './pages/dash/driver/Earnings';
 import { AdminDash } from './pages/dash/AdminDash';
 
 function RootLayout() {
@@ -91,7 +95,19 @@ const router = createBrowserRouter([
           },
           {
             element: <RequireRole role="DRIVER" />,
-            children: [{ path: '/dashboard/driver', element: <DriverDash /> }],
+            children: [
+              {
+                path: '/dashboard/driver',
+                element: <DriverDash />,
+                children: [
+                  { index: true, element: <Navigate to="available" replace /> },
+                  { path: 'available', element: <AvailableJobs /> },
+                  { path: 'mine', element: <MyJob /> },
+                  { path: 'history', element: <DriverHistory /> },
+                  { path: 'earnings', element: <DriverEarnings /> },
+                ],
+              },
+            ],
           },
           {
             element: <RequireRole role="ADMIN" />,
