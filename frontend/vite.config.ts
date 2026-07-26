@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'marketplace.noiricikiwir.tech';
 
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
