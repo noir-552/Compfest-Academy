@@ -8,6 +8,7 @@ const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:30
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    allowedHosts: ['marketplace.noiricikiwir.tech'],
     proxy: {
       '/api': {
         target: apiProxyTarget,
