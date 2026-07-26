@@ -7,9 +7,10 @@ services:
       PORT: 3001
       UPLOADS_DIR: /app/data/uploads
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     volumes:
       - backend-data:/app/data
+    restart: unless-stopped
 
   frontend:
     build:
@@ -17,9 +18,10 @@ services:
     environment:
       VITE_API_PROXY_TARGET: http://backend:3001
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     depends_on:
       - backend
+    restart: unless-stopped
 
 volumes:
   backend-data:
